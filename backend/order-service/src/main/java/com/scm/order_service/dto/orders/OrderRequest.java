@@ -1,4 +1,4 @@
-package com.scm.order_service.dto;
+package com.scm.order_service.dto.orders;
 
 import lombok.Data;
 import java.util.List;

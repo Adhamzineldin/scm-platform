@@ -6,6 +6,7 @@ import lombok.Data;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "orders")
@@ -19,6 +20,9 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private OrderStatus status;
 
+
+    @Column(name = "user_id", nullable = false)
+    private String userId;
     
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();

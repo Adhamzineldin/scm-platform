@@ -1,9 +1,9 @@
 package com.scm.order_service.mappers;
 
-import com.scm.order_service.dto.OrderItemRequest;
-import com.scm.order_service.dto.OrderItemResponse;
-import com.scm.order_service.dto.OrderRequest;
-import com.scm.order_service.dto.OrderResponse;
+import com.scm.order_service.dto.orders.OrderItemRequest;
+import com.scm.order_service.dto.orders.OrderItemResponse;
+import com.scm.order_service.dto.orders.OrderRequest;
+import com.scm.order_service.dto.orders.OrderResponse;
 import com.scm.order_service.entity.Order;
 import com.scm.order_service.entity.OrderItem;
 import com.scm.order_service.enums.OrderStatus;
@@ -32,11 +32,28 @@ public class OrderMapper {
     public OrderResponse toResponse(Order order) {
         OrderResponse response = new OrderResponse();
         response.setId(order.getId());
+        response.setUserId(order.getUserId());
         response.setStatus(order.getStatus());
-
         response.setItems(mapOrderItemResponses(order.getItems()));
 
         return response;
+    }
+
+    public PagedResponse<OrderResponse> createPagedResponse(Page<Order> orderPage) {
+        // 1. Map the list of entities to DTOs
+        List<OrderResponse> orderResponses = orderPage.getContent().stream()
+                .map(orderMapper::toResponse)
+                .collect(Collectors.toList());
+
+        // 2. Wrap it all in our clean PagedResponse DTO
+        return PagedResponse.<OrderResponse>builder()
+                .content(orderResponses)
+                .pageNumber(orderPage.getNumber())
+                .pageSize(orderPage.getSize())
+                .totalElements(orderPage.getTotalElements())
+                .totalPages(orderPage.getTotalPages())
+                .isLast(orderPage.isLast())
+                .build();
     }
     
 
