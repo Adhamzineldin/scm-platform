@@ -10,3 +10,4 @@ A microservices-based logistics platform handling inventory, orders, internal wa
 * **Warehouse Logistics:** [Name]
 * **Shipment & External:** [Name]
 * **Cloud & DevOps:** [Name]
+
