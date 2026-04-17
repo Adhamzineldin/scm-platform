@@ -8,6 +8,7 @@ import java.util.List;
 public class OrderResponse {
     private Long id;
     private String userId;
+    private String shippingAddress;
     private OrderStatus status;
     private List<OrderItemResponse> items;
 }

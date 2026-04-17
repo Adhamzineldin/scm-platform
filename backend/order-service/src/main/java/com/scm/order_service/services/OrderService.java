@@ -15,6 +15,7 @@ import com.scm.order_service.mappers.PaginationMapper;
 import com.scm.order_service.messaging.OrderEventProducer;
 import com.scm.order_service.repository.OrderRepository;
 import com.scm.order_service.mappers.OrderMapper;
+import com.scm.order_service.validator.OrderValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -28,17 +29,22 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
     private final InventoryClient inventoryClient;
-    private final ShipmentClient shipmentClient;
     private final OrderEventProducer orderEventProducer;
     private final PaginationMapper paginationMapper;
+    private final OrderValidator orderValidator;
+    
 
 
     public OrderResponse createOrder(String userId, OrderRequest orderRequest) {
+        
+        orderValidator.validateOrder(orderRequest);
+        
         reserveInventory(orderRequest.getItems());
 
         Order order = orderMapper.toEntity(orderRequest);
@@ -54,16 +60,20 @@ public class OrderService {
 
     @KafkaListener(topics = "warehouse-order-packed", groupId = "order-service-group")
     public void handleOrderPackedEvent(OrderPackedEvent event) {
+        log.info("Received Kafka event: Warehouse finished packing Order ID {}", event.getOrderId());
+
         Order order = orderRepository.findById(event.getOrderId())
                 .orElseThrow(() -> new RuntimeException("Order not found with ID: " + event.getOrderId()));
         
         order.setStatus(OrderStatus.PICKED);
         orderRepository.save(order);
+
         orderEventProducer.sendOrderReadyForDispatchEvent(
                 new OrderReadyForDispatchEvent(order.getId(), order.getShippingAddress())
         );
     }
     
+
     public PagedResponse<OrderResponse> getAllOrders(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
         Page<Order> orderPage = orderRepository.findAll(pageable);
