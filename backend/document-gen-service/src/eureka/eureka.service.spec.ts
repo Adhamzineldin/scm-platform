@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EurekaService } from './eureka.service';
+import { EurekaService } from './eureka.service.js'; // Ensure the .js extension if using ESM
+import { ConfigService } from '@nestjs/config'; // CRITICAL: Added this import
 import axios from 'axios';
 
 jest.mock('axios');
@@ -10,15 +11,26 @@ describe('EurekaService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [EurekaService],
+      providers: [
+        EurekaService,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string, defaultValue: any) => defaultValue),
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<EurekaService>(EurekaService);
   });
 
   afterEach(async () => {
-    await service.onModuleDestroy();
+    if (service) {
+      await service.onModuleDestroy();
+    }
   });
 
   it('should be defined', () => {
@@ -32,16 +44,16 @@ describe('EurekaService', () => {
 
     expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     expect(mockedAxios.post).toHaveBeenCalledWith(
-      expect.stringContaining('/eureka/apps/DOCUMENT-GEN-SERVICE'),
-      expect.objectContaining({
-        instance: expect.objectContaining({
-          app: 'DOCUMENT-GEN-SERVICE',
-          status: 'UP',
+        expect.stringContaining('/eureka/apps/DOCUMENT-GEN-SERVICE'),
+        expect.objectContaining({
+          instance: expect.objectContaining({
+            app: 'DOCUMENT-GEN-SERVICE',
+            status: 'UP',
+          }),
         }),
-      }),
-      expect.objectContaining({
-        headers: { 'Content-Type': 'application/json' },
-      }),
+        expect.objectContaining({
+          headers: { 'Content-Type': 'application/json' },
+        }),
     );
   });
 
@@ -57,7 +69,7 @@ describe('EurekaService', () => {
     await service.onModuleDestroy();
 
     expect(mockedAxios.delete).toHaveBeenCalledWith(
-      expect.stringContaining('/eureka/apps/DOCUMENT-GEN-SERVICE/'),
+        expect.stringContaining('/eureka/apps/DOCUMENT-GEN-SERVICE'),
     );
   });
 

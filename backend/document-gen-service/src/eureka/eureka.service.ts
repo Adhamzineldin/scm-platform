@@ -1,19 +1,29 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as os from 'os';
 
 @Injectable()
 export class EurekaService implements OnModuleDestroy {
   private readonly logger = new Logger(EurekaService.name);
-  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private heartbeatInterval: NodeJS.Timeout | null = null;
 
-  private readonly appName =
-    process.env.EUREKA_APP_NAME ?? 'document-gen-service';
-  private readonly port = parseInt(process.env.PORT ?? '3050', 10);
-  private readonly eurekaHost =
-    process.env.EUREKA_SERVER ?? 'http://localhost:8761';
-  private readonly hostname = os.hostname();
-  private readonly instanceId = `${this.hostname}:${this.appName}:${this.port}`;
+  private readonly appName: string;
+  private readonly port: number;
+  private readonly eurekaHost: string;
+  private readonly hostname: string;
+  private readonly instanceId: string;
+
+  constructor(private readonly configService: ConfigService) {
+    this.appName = this.configService.get<string>('EUREKA_APP_NAME', 'document-gen-service');
+    
+    this.port = parseInt(this.configService.get<string>('PORT', '3050'), 10);
+
+    this.eurekaHost = this.configService.get<string>('EUREKA_SERVER', 'http://localhost:8761');
+
+    this.hostname = os.hostname();
+    this.instanceId = `${this.hostname}:${this.appName}:${this.port}`;
+  }
 
   async register(): Promise<void> {
     const registrationBody = {
@@ -25,8 +35,7 @@ export class EurekaService implements OnModuleDestroy {
         status: 'UP',
         port: { $: this.port, '@enabled': true },
         dataCenterInfo: {
-          '@class':
-            'com.netflix.appinfo.InstanceInfo$DefaultDataCenterInfo',
+          '@class': 'com.netflix.appinfo.InstanceInfo$DefaultDataCenterInfo',
           name: 'MyOwn',
         },
         healthCheckUrl: `http://${this.hostname}:${this.port}/api/health`,
@@ -37,30 +46,24 @@ export class EurekaService implements OnModuleDestroy {
 
     try {
       await axios.post(
-        `${this.eurekaHost}/eureka/apps/${this.appName.toUpperCase()}`,
-        registrationBody,
-        { headers: { 'Content-Type': 'application/json' } },
+          `${this.eurekaHost}/eureka/apps/${this.appName.toUpperCase()}`,
+          registrationBody,
+          { headers: { 'Content-Type': 'application/json' } },
       );
-      this.logger.log(
-        `Registered with Eureka as ${this.appName.toUpperCase()}`,
-      );
+      this.logger.log(`Registered with Eureka as ${this.appName.toUpperCase()}`);
       this.startHeartbeat();
     } catch (error) {
-      this.logger.warn(
-        `Failed to register with Eureka (service will still work standalone): ${(error as Error).message}`,
-      );
+      this.logger.warn(`Failed to register with Eureka: ${(error as Error).message}`);
     }
   }
 
   private startHeartbeat(): void {
     this.heartbeatInterval = setInterval(() => {
       axios
-        .put(
-          `${this.eurekaHost}/eureka/apps/${this.appName.toUpperCase()}/${this.instanceId}`,
-        )
-        .catch(() => {
-          this.logger.warn('Eureka heartbeat failed');
-        });
+          .put(`${this.eurekaHost}/eureka/apps/${this.appName.toUpperCase()}/${this.instanceId}`)
+          .catch(() => {
+            this.logger.warn('Eureka heartbeat failed');
+          });
     }, 30_000);
   }
 
@@ -70,9 +73,7 @@ export class EurekaService implements OnModuleDestroy {
     }
 
     try {
-      await axios.delete(
-        `${this.eurekaHost}/eureka/apps/${this.appName.toUpperCase()}/${this.instanceId}`,
-      );
+      await axios.delete(`${this.eurekaHost}/eureka/apps/${this.appName.toUpperCase()}/${this.instanceId}`);
       this.logger.log('Deregistered from Eureka');
     } catch {
       this.logger.warn('Failed to deregister from Eureka');

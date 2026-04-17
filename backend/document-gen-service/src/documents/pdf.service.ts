@@ -4,23 +4,26 @@ import PDFDocument from 'pdfkit';
 
 @Injectable()
 export class PdfService {
-  generateOrderReceipt(order: OrderReceiptDto): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: 50 });
-      const chunks: Buffer[] = [];
+  generateOrderReceipt(order: OrderReceiptDto, res: any): void {
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
 
-      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
-
-      this.buildHeader(doc, order);
-      this.buildOrderInfo(doc, order);
-      this.buildItemsTable(doc, order.items);
-      this.buildTotals(doc, order.items);
-      this.buildFooter(doc);
-
-      doc.end();
+    doc.pipe(res);
+    
+    doc.on('error', (err) => {
+      console.error('PDF Generation Error:', err);
+      if (!res.headersSent) {
+        res.status(500).send('Error generating PDF');
+      }
     });
+
+    this.buildHeader(doc, order);
+    this.buildOrderInfo(doc, order);
+    this.buildItemsTable(doc, order.items);
+    this.buildTotals(doc, order.items);
+    this.buildFooter(doc);
+
+    // This tells Node to finish the stream and send the final bytes to the user
+    doc.end();
   }
 
   private buildHeader(doc: PDFKit.PDFDocument, order: OrderReceiptDto): void {

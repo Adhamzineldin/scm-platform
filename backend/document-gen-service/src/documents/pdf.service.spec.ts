@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PdfService } from './pdf.service';
-import type { OrderReceiptDto } from './dto/order-receipt.dto';
+import { PdfService } from './pdf.service.js';
+import type { OrderReceiptDto } from './dto/order-receipt.dto.js';
+import { PassThrough } from 'stream';
 
 describe('PdfService', () => {
   let service: PdfService;
@@ -26,12 +27,32 @@ describe('PdfService', () => {
     ],
   });
 
+ 
+  const capturePdfStream = (order: OrderReceiptDto): Promise<Buffer> => {
+    return new Promise((resolve, reject) => {
+      const mockResponse = new PassThrough();
+      const chunks: Buffer[] = [];
+
+      Object.assign(mockResponse, {
+        headersSent: false,
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      });
+
+      mockResponse.on('data', (chunk: Buffer) => chunks.push(chunk));
+      mockResponse.on('end', () => resolve(Buffer.concat(chunks)));
+      mockResponse.on('error', reject);
+
+      service.generateOrderReceipt(order, mockResponse as any);
+    });
+  };
+
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
   it('should generate a valid PDF buffer starting with %PDF-', async () => {
-    const buffer = await service.generateOrderReceipt(buildValidOrder());
+    const buffer = await capturePdfStream(buildValidOrder());
 
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);
@@ -42,7 +63,7 @@ describe('PdfService', () => {
     const order = buildValidOrder();
     order.items = [{ sku: 'SINGLE-SKU', quantity: 10, unitPrice: 5.0 }];
 
-    const buffer = await service.generateOrderReceipt(order);
+    const buffer = await capturePdfStream(order);
 
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.toString('ascii', 0, 5)).toBe('%PDF-');
@@ -55,7 +76,7 @@ describe('PdfService', () => {
       { sku: 'SKU-NO-PRICE-2', quantity: 7 },
     ];
 
-    const buffer = await service.generateOrderReceipt(order);
+    const buffer = await capturePdfStream(order);
 
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);
@@ -67,7 +88,7 @@ describe('PdfService', () => {
     order.companyAddress = '456 Business Blvd';
     order.companyPhone = '+1-555-0100';
 
-    const buffer = await service.generateOrderReceipt(order);
+    const buffer = await capturePdfStream(order);
 
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);
@@ -81,7 +102,7 @@ describe('PdfService', () => {
       unitPrice: 10.0 + i,
     }));
 
-    const buffer = await service.generateOrderReceipt(order);
+    const buffer = await capturePdfStream(order);
 
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);
@@ -91,7 +112,7 @@ describe('PdfService', () => {
     const order = buildValidOrder();
     order.shippingAddress = '123 Stra\u00dfe, M\u00fcnchen, Germany & Co. <test>';
 
-    const buffer = await service.generateOrderReceipt(order);
+    const buffer = await capturePdfStream(order);
 
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);
