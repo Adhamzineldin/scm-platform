@@ -4,6 +4,7 @@ import com.scm.order_service.dto.orders.OrderRequest;
 import com.scm.order_service.dto.orders.OrderResponse;
 import com.scm.order_service.dto.orders.PagedResponse;
 import com.scm.order_service.services.OrderService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -19,8 +20,7 @@ public class OrderController {
     @ResponseStatus(HttpStatus.CREATED)
     public OrderResponse placeOrder(
             @RequestHeader("X-User-Id") String userId,
-            @RequestBody OrderRequest orderRequest) {
-
+            @Valid @RequestBody OrderRequest orderRequest) { // Added @Valid
         return orderService.createOrder(userId, orderRequest);
     }
 

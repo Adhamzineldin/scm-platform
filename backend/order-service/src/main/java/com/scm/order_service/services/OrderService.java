@@ -24,6 +24,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -38,9 +39,9 @@ public class OrderService {
     private final OrderEventProducer orderEventProducer;
     private final PaginationMapper paginationMapper;
     private final OrderValidator orderValidator;
-    
 
 
+    @Transactional
     public OrderResponse createOrder(String userId, OrderRequest orderRequest) {
         
         orderValidator.validateOrder(orderRequest);
@@ -57,7 +58,7 @@ public class OrderService {
         return response;
     }
 
-
+    @Transactional
     @KafkaListener(topics = "warehouse-order-packed", groupId = "order-service-group")
     public void handleOrderPackedEvent(OrderPackedEvent event) {
         log.info("Received Kafka event: Warehouse finished packing Order ID {}", event.getOrderId());
