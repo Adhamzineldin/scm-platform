@@ -18,6 +18,7 @@ public class OrderMapper {
         order.setStatus(OrderStatus.CREATED);
         order.setShippingAddress(request.getShippingAddress());
         order.setIdempotencyKey(request.getIdempotencyKey());
+        
 
         if (request.getItems() != null) {
             request.getItems().stream()
@@ -36,7 +37,7 @@ public class OrderMapper {
         response.setIdempotencyKey(order.getIdempotencyKey()); // Map back to response
         response.setCreatedAt(order.getCreatedAt());
         response.setUpdatedAt(order.getUpdatedAt());
-
+        
         response.setItems(mapOrderItemResponses(order.getItems()));
         return response;
     }
@@ -54,6 +55,7 @@ public class OrderMapper {
         OrderItem item = new OrderItem();
         item.setSku(itemRequest.getSku());
         item.setQuantity(itemRequest.getQuantity());
+        item.setUnitPrice(itemRequest.getUnitPrice());
         return item;
     }
 
@@ -61,6 +63,7 @@ public class OrderMapper {
         OrderItemResponse itemResponse = new OrderItemResponse();
         itemResponse.setSku(item.getSku());
         itemResponse.setQuantity(item.getQuantity());
+        itemResponse.setUnitPrice(item.getUnitPrice());
         return itemResponse;
     }
 }
