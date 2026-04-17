@@ -1,18 +1,17 @@
 server:
-  port: 8082
+  port: 2501
 
 spring:
   application:
     name: order-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/logistics_db
+    url: jdbc:postgresql://localhost:5434/scm_order_db
     username: admin
     password: password
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
- 
 
 eureka:
   client:
