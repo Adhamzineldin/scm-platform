@@ -1,5 +1,6 @@
 package com.scm.notification.listener;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scm.notification.dto.OrderStatusChangedEvent;
 import com.scm.notification.service.NotificationDispatcher;
 import lombok.RequiredArgsConstructor;
@@ -13,14 +14,16 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class OrderStatusEventListener {
 
     private static final String TOPIC = "order-status-changed-topic";
-
     private final NotificationDispatcher notificationDispatcher;
+    private final ObjectMapper objectMapper;
 
     @RetryableTopic(
             attempts = "4",
@@ -28,17 +31,19 @@ public class OrderStatusEventListener {
             dltStrategy = DltStrategy.FAIL_ON_ERROR
     )
     @KafkaListener(topics = TOPIC, groupId = "notification-service-status-group")
-    public void handleStatusChanged(OrderStatusChangedEvent event) {
+    public void handleStatusChanged(Map<String, Object> eventMap) {
+        OrderStatusChangedEvent event = objectMapper.convertValue(eventMap, OrderStatusChangedEvent.class);
+
         log.info("Received OrderStatusChangedEvent for Order #{}: {} -> {}",
                 event.orderId(), event.previousStatus(), event.newStatus());
         notificationDispatcher.dispatchStatusUpdate(event);
     }
 
     @DltHandler
-    public void handleDeadLetter(OrderStatusChangedEvent event,
+    public void handleDeadLetter(Map<String, Object> eventMap,
                                  @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
                                  @Header(KafkaHeaders.EXCEPTION_MESSAGE) String errorMessage) {
-        log.error("DLT [{}]: Order #{} status update notification permanently failed. Reason: {}",
-                topic, event.orderId(), errorMessage);
+        log.error("DLT [{}]: Status update notification permanently failed. Reason: {}",
+                topic, errorMessage);
     }
 }

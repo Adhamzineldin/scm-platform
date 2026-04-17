@@ -35,14 +35,14 @@ public class Order {
 
     @Column(name = "idempotency_key", nullable = false, unique = true)
     private String idempotencyKey;
-    
-    
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
+
+
+    @CreatedDate 
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @LastModifiedDate
-    @Column(nullable = false)
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
     
@@ -50,5 +50,17 @@ public class Order {
     public void addItem(OrderItem item) {
         items.add(item);
         item.setOrder(this);
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = java.time.LocalDateTime.now();
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = java.time.LocalDateTime.now();
     }
 }

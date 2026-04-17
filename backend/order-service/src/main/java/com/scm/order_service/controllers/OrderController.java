@@ -20,7 +20,7 @@ public class OrderController {
     @ResponseStatus(HttpStatus.CREATED)
     public OrderResponse placeOrder(
             @RequestHeader("X-User-Id") String userId,
-            @Valid @RequestBody OrderRequest orderRequest) { // Added @Valid
+            @Valid @RequestBody OrderRequest orderRequest) { 
         return orderService.createOrder(userId, orderRequest);
     }
 

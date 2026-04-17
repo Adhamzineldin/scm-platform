@@ -27,7 +27,15 @@ public class NotificationDispatcher {
     private final DocumentClient documentClient;
 
     public void dispatchOrderConfirmation(OrderCreatedEvent event) {
-        UserDto user = userClient.getUserById(event.userId());
+//        UserDto user = userClient.getUserById(event.userId());
+
+        //TODO: use client when it's ready
+        UserDto user = new UserDto(
+                "1",
+                "mohalya3@gmail.com",
+                "Adham Zineldin",
+                "01157000509"
+        );
         byte[] receipt = generateReceipt(event);
 
         OrderConfirmationContext context = new OrderConfirmationContext(event, user, receipt);

@@ -26,21 +26,25 @@ export class EurekaService implements OnModuleDestroy {
   }
 
   async register(): Promise<void> {
+    const ip = this.getIpAddress();
     const registrationBody = {
       instance: {
         instanceId: this.instanceId,
-        hostName: this.hostname,
+        hostName: ip,
         app: this.appName.toUpperCase(),
-        ipAddr: this.getIpAddress(),
+        ipAddr: ip,
         status: 'UP',
         port: { $: this.port, '@enabled': true },
         dataCenterInfo: {
           '@class': 'com.netflix.appinfo.InstanceInfo$DefaultDataCenterInfo',
           name: 'MyOwn',
         },
-        healthCheckUrl: `http://${this.hostname}:${this.port}/api/health`,
-        statusPageUrl: `http://${this.hostname}:${this.port}/api/health`,
-        homePageUrl: `http://${this.hostname}:${this.port}/`,
+        healthCheckUrl: `http://${ip}:${this.port}/api/health`,
+        statusPageUrl: `http://${ip}:${this.port}/api/health`,
+        homePageUrl: `http://${ip}:${this.port}/`,
+        metadata: {
+          "management.port": `${this.port}`
+        }
       },
     };
 

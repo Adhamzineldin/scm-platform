@@ -9,7 +9,7 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
-import org.springframework.kafka.support.serializer.JacksonJsonDeserializer;
+import org.springframework.kafka.support.serializer.JacksonJsonDeserializer; 
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,10 +17,10 @@ import java.util.Map;
 @Configuration
 public class KafkaConsumerConfig {
 
-    @Value("${spring.kafka.bootstrap-servers}")
+    @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
     private String bootstrapServers;
 
-    @Value("${spring.kafka.consumer.group-id}")
+    @Value("${spring.kafka.consumer.group-id:notification-service-group}")
     private String groupId;
 
     @Bean
@@ -30,16 +30,14 @@ public class KafkaConsumerConfig {
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        JacksonJsonDeserializer<Object> jsonDeserializer =
-                new JacksonJsonDeserializer<>(Object.class, false);
-
-        ErrorHandlingDeserializer<Object> errorHandlingDeserializer =
-                new ErrorHandlingDeserializer<>(jsonDeserializer);
+        props.put(JacksonJsonDeserializer.VALUE_DEFAULT_TYPE, "java.util.HashMap");
+        props.put(JacksonJsonDeserializer.USE_TYPE_INFO_HEADERS, "false");
+        props.put(JacksonJsonDeserializer.TRUSTED_PACKAGES, "*");
 
         return new DefaultKafkaConsumerFactory<>(
                 props,
                 new StringDeserializer(),
-                errorHandlingDeserializer
+                new ErrorHandlingDeserializer<>(new JacksonJsonDeserializer<>(Object.class))
         );
     }
 
