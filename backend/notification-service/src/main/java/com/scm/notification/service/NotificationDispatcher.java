@@ -35,7 +35,14 @@ public class NotificationDispatcher {
     }
 
     public void dispatchStatusUpdate(OrderStatusChangedEvent event) {
-        UserDto user = userClient.getUserById(event.userId());
+//        UserDto user = userClient.getUserById(event.userId());
+        //TODO: use client when it's ready
+        UserDto user = new UserDto(
+                "1",
+                "mohalya3@gmail.com",
+                "Adham Zineldin",
+                "01157000509"
+        );
 
         StatusUpdateContext context = new StatusUpdateContext(event, user);
         fanOut(context, sender -> sender.sendStatusUpdate(context));

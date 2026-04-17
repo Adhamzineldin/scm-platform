@@ -50,7 +50,8 @@ public class OrderService {
     
     private OrderResponse processNewOrder(String userId, OrderRequest orderRequest) {
         orderValidator.validateOrder(orderRequest);
-        reserveInventory(orderRequest.getItems());
+        // TODO: Uncomment when inventory is implemented
+        // reserveInventory(orderRequest.getItems());
 
         Order order = orderMapper.toEntity(orderRequest);
         order.setUserId(userId);
