@@ -12,12 +12,12 @@ import java.util.stream.Collectors;
 
 @Component
 public class OrderMapper {
-    
 
     public Order toEntity(OrderRequest request) {
         Order order = new Order();
         order.setStatus(OrderStatus.CREATED);
         order.setShippingAddress(request.getShippingAddress());
+        order.setIdempotencyKey(request.getIdempotencyKey());
 
         if (request.getItems() != null) {
             request.getItems().stream()
@@ -32,12 +32,15 @@ public class OrderMapper {
         response.setId(order.getId());
         response.setUserId(order.getUserId());
         response.setStatus(order.getStatus());
-        response.setItems(mapOrderItemResponses(order.getItems()));
         response.setShippingAddress(order.getShippingAddress());
+        response.setIdempotencyKey(order.getIdempotencyKey()); // Map back to response
+        response.setCreatedAt(order.getCreatedAt());
+        response.setUpdatedAt(order.getUpdatedAt());
 
+        response.setItems(mapOrderItemResponses(order.getItems()));
         return response;
     }
-    
+
     private List<OrderItemResponse> mapOrderItemResponses(List<OrderItem> items) {
         if (items == null || items.isEmpty()) {
             return new ArrayList<>();
