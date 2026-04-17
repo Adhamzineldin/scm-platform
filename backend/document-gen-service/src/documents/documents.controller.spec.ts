@@ -50,31 +50,39 @@ describe('DocumentsController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('should set headers and call pdfService.generateOrderReceipt', () => {
+  it('should set headers and send the PDF buffer', async () => {
     const res = createMockResponse();
+    const fakeBuffer = Buffer.from('%PDF-1.7 fake');
 
-    controller.generateOrderReceipt(mockOrderData, res);
+    jest
+      .spyOn(pdfService, 'generateOrderReceipt')
+      .mockResolvedValue(fakeBuffer);
 
+    await controller.generateOrderReceipt(mockOrderData, res);
+
+    expect(pdfService.generateOrderReceipt).toHaveBeenCalledWith(mockOrderData);
     expect(res.set).toHaveBeenCalledWith({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename=order-receipt-${mockOrderData.orderId}.pdf`,
+      'Content-Length': fakeBuffer.length,
     });
-
-    expect(pdfService.generateOrderReceipt).toHaveBeenCalledWith(mockOrderData, res);
+    expect(res.end).toHaveBeenCalledWith(fakeBuffer);
   });
 
-  it('should throw HttpException when pdfService throws an error', () => {
+  it('should throw HttpException when pdfService rejects', async () => {
     const res = createMockResponse();
-    
-    jest.spyOn(pdfService, 'generateOrderReceipt').mockImplementation(() => {
-      throw new Error('PDFKit crash');
-    });
 
-    expect(() => controller.generateOrderReceipt(mockOrderData, res)).toThrow(
-        new HttpException(
-            'Failed to generate PDF receipt',
-            HttpStatus.INTERNAL_SERVER_ERROR,
-        ),
+    jest
+      .spyOn(pdfService, 'generateOrderReceipt')
+      .mockRejectedValue(new Error('PDFKit crash'));
+
+    await expect(
+      controller.generateOrderReceipt(mockOrderData, res),
+    ).rejects.toThrow(
+      new HttpException(
+        'Failed to generate PDF receipt',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      ),
     );
   });
 });
