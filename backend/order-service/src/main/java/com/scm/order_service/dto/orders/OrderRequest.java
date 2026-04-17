@@ -7,6 +7,10 @@ import java.util.List;
 
 @Data
 public class OrderRequest {
+
+    @NotBlank(message = "Idempotency key is required to prevent duplicate orders")
+    private String idempotencyKey;
+    
     @NotBlank(message = "Shipping address is required")
     private String shippingAddress;
 

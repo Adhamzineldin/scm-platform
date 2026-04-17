@@ -32,6 +32,9 @@ public class Order {
     
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
+
+    @Column(name = "idempotency_key", nullable = false, unique = true)
+    private String idempotencyKey;
     
     
     @CreatedDate

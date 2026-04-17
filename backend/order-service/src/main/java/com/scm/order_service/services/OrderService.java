@@ -43,13 +43,18 @@ public class OrderService {
 
     @Transactional
     public OrderResponse createOrder(String userId, OrderRequest orderRequest) {
-        
+        return orderRepository.findByUserIdAndIdempotencyKey(userId, orderRequest.getIdempotencyKey())
+                .map(orderMapper::toResponse)
+                .orElseGet(() -> processNewOrder(userId, orderRequest));
+    }
+    
+    private OrderResponse processNewOrder(String userId, OrderRequest orderRequest) {
         orderValidator.validateOrder(orderRequest);
-        
         reserveInventory(orderRequest.getItems());
 
         Order order = orderMapper.toEntity(orderRequest);
         order.setUserId(userId);
+        order.setIdempotencyKey(orderRequest.getIdempotencyKey());
 
         Order savedOrder = orderRepository.save(order);
         OrderResponse response = orderMapper.toResponse(savedOrder);
