@@ -18,17 +18,17 @@ import java.util.Map;
 public class KafkaConsumerConfig {
 
     @Bean
-    public ConsumerFactory<String, OrderPackedEvent> consumerFactory() {
+    public ConsumerFactory<String, Object> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
 
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "order-service-group");
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        JacksonJsonDeserializer<OrderPackedEvent> jsonDeserializer =
-                new JacksonJsonDeserializer<>(OrderPackedEvent.class, false);
+        JacksonJsonDeserializer<Object> jsonDeserializer =
+                new JacksonJsonDeserializer<>(Object.class, false);
 
-        ErrorHandlingDeserializer<OrderPackedEvent> errorHandlingDeserializer =
+        ErrorHandlingDeserializer<Object> errorHandlingDeserializer =
                 new ErrorHandlingDeserializer<>(jsonDeserializer);
 
         return new DefaultKafkaConsumerFactory<>(
