@@ -13,7 +13,9 @@
       "Bash(jar tf *)",
       "Bash(pnpm add *)",
       "Bash(pnpm build *)",
-      "Bash(pnpm test *)"
+      "Bash(pnpm test *)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs"
     ]
   }
 }

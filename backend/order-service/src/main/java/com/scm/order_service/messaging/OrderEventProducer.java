@@ -3,6 +3,7 @@ package com.scm.order_service.messaging;
 import com.scm.order_service.dto.messaging.OrderCreatedEvent;
 import com.scm.order_service.dto.messaging.OrderItemPayload;
 import com.scm.order_service.dto.messaging.OrderReadyForDispatchEvent;
+import com.scm.order_service.dto.messaging.OrderStatusChangedEvent;
 import com.scm.order_service.dto.orders.OrderResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,19 @@ public class OrderEventProducer {
         log.info("Publishing event: Order ID {} is packed and ready for external dispatch", event.getOrderId());
 
         sendMessage("order-ready-for-dispatch-topic", event);
+    }
+
+    public void sendOrderStatusChangedEvent(Long orderId, String userId, String previousStatus, String newStatus) {
+        log.info("Publishing status change for Order #{}: {} -> {}", orderId, previousStatus, newStatus);
+
+        OrderStatusChangedEvent event = new OrderStatusChangedEvent(
+                orderId,
+                userId,
+                previousStatus,
+                newStatus,
+                Instant.now().toString()
+        );
+        sendMessage("order-status-changed-topic", event);
     }
 
    

@@ -1,6 +1,9 @@
 package com.scm.notification.dto;
 
-public record NotificationContext(
-        OrderCreatedEvent event,
-        UserDto user
-) {}
+public sealed interface NotificationContext
+        permits OrderConfirmationContext, StatusUpdateContext {
+
+    Long orderId();
+
+    UserDto user();
+}

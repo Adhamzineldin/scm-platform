@@ -1,6 +1,6 @@
 package com.scm.notification.listener;
 
-import com.scm.notification.dto.OrderCreatedEvent;
+import com.scm.notification.dto.OrderStatusChangedEvent;
 import com.scm.notification.service.NotificationDispatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,9 +16,9 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class OrderEventListener {
+public class OrderStatusEventListener {
 
-    private static final String TOPIC = "order-created-topic";
+    private static final String TOPIC = "order-status-changed-topic";
 
     private final NotificationDispatcher notificationDispatcher;
 
@@ -27,17 +27,18 @@ public class OrderEventListener {
             backOff = @BackOff(delay = 2000, multiplier = 2.0, maxDelay = 10000),
             dltStrategy = DltStrategy.FAIL_ON_ERROR
     )
-    @KafkaListener(topics = TOPIC, groupId = "notification-service-confirmation-group")
-    public void handleOrderCreated(OrderCreatedEvent event) {
-        log.info("Received OrderCreatedEvent for Order #{}", event.orderId());
-        notificationDispatcher.dispatchOrderConfirmation(event);
+    @KafkaListener(topics = TOPIC, groupId = "notification-service-status-group")
+    public void handleStatusChanged(OrderStatusChangedEvent event) {
+        log.info("Received OrderStatusChangedEvent for Order #{}: {} -> {}",
+                event.orderId(), event.previousStatus(), event.newStatus());
+        notificationDispatcher.dispatchStatusUpdate(event);
     }
 
     @DltHandler
-    public void handleDeadLetter(OrderCreatedEvent event,
+    public void handleDeadLetter(OrderStatusChangedEvent event,
                                  @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
                                  @Header(KafkaHeaders.EXCEPTION_MESSAGE) String errorMessage) {
-        log.error("DLT [{}]: Order #{} confirmation permanently failed. Reason: {}",
+        log.error("DLT [{}]: Order #{} status update notification permanently failed. Reason: {}",
                 topic, event.orderId(), errorMessage);
     }
 }

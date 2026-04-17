@@ -1,6 +1,5 @@
 package com.scm.notification.config;
 
-import com.scm.notification.dto.OrderCreatedEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,16 +24,16 @@ public class KafkaConsumerConfig {
     private String groupId;
 
     @Bean
-    public ConsumerFactory<String, OrderCreatedEvent> orderEventConsumerFactory() {
+    public ConsumerFactory<String, Object> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        JacksonJsonDeserializer<OrderCreatedEvent> jsonDeserializer =
-                new JacksonJsonDeserializer<>(OrderCreatedEvent.class, false);
+        JacksonJsonDeserializer<Object> jsonDeserializer =
+                new JacksonJsonDeserializer<>(Object.class, false);
 
-        ErrorHandlingDeserializer<OrderCreatedEvent> errorHandlingDeserializer =
+        ErrorHandlingDeserializer<Object> errorHandlingDeserializer =
                 new ErrorHandlingDeserializer<>(jsonDeserializer);
 
         return new DefaultKafkaConsumerFactory<>(
@@ -45,10 +44,10 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, OrderCreatedEvent> kafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, OrderCreatedEvent> factory =
+    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, Object> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(orderEventConsumerFactory());
+        factory.setConsumerFactory(consumerFactory());
         return factory;
     }
 }

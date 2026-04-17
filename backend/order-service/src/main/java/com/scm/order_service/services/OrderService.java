@@ -70,12 +70,27 @@ public class OrderService {
 
         Order order = orderRepository.findById(event.getOrderId())
                 .orElseThrow(() -> new RuntimeException("Order not found with ID: " + event.getOrderId()));
-        
-        order.setStatus(OrderStatus.PICKED);
-        orderRepository.save(order);
+
+        transitionStatus(order, OrderStatus.PICKED);
 
         orderEventProducer.sendOrderReadyForDispatchEvent(
                 new OrderReadyForDispatchEvent(order.getId(), order.getShippingAddress())
+        );
+    }
+
+    private void transitionStatus(Order order, OrderStatus newStatus) {
+        OrderStatus previous = order.getStatus();
+        if (previous == newStatus) {
+            return;
+        }
+        order.setStatus(newStatus);
+        orderRepository.save(order);
+
+        orderEventProducer.sendOrderStatusChangedEvent(
+                order.getId(),
+                order.getUserId(),
+                previous != null ? previous.name() : null,
+                newStatus.name()
         );
     }
     
