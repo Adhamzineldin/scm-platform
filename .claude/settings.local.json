@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls *)",
+      "Bash(mkdir -p \"G:/University/Third Year Term 2/Distributed Systems & Cloud Computing/scm-platform/backend/document-gen-service/src/documents\")",
+      "Bash(mkdir -p \"G:/University/Third Year Term 2/Distributed Systems & Cloud Computing/scm-platform/backend/document-gen-service/src/eureka\")",
+      "Bash(mkdir -p \"G:/University/Third Year Term 2/Distributed Systems & Cloud Computing/scm-platform/backend/document-gen-service/src/health\")",
+      "Bash(mvn dependency:tree -Dscope=test)",
+      "Bash(mvn dependency:tree)",
+      "Bash(where mvn *)",
+      "Bash(./mvnw.cmd dependency:tree)",
+      "Bash(java -jar .mvn/wrapper/maven-wrapper.jar dependency:tree)",
+      "Bash(jar tf *)",
+      "Bash(pnpm add *)"
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+# === Java / Spring Boot ===
+target/
+*.class
+*.jar
+*.war
+*.log
+hs_err_pid*
+
+# === Maven ===
+.mvn/wrapper/maven-wrapper.jar
+
+# === Node / NestJS ===
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.pnpm-store/
+
+# === IDE ===
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Environment ===
+.env
+.env.*
+!.env.example
