@@ -1,4 +1,5 @@
 package com.scm.cart.service;
 
-public class CartService {
+public interface CartService {
+    void addToCart(Long userId, Long productId, int quantity);
 }
