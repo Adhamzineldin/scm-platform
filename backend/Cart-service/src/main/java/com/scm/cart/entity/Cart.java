@@ -2,6 +2,7 @@ package com.scm.cart.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -17,15 +18,14 @@ public class Cart {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // user who owns the cart
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private Long userId;
 
-    // timestamps
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
     private LocalDateTime updatedAt;
 
-    // auto set timestamps
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

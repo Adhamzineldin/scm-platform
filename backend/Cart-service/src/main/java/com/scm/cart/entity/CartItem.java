@@ -16,12 +16,10 @@ public class CartItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // relationship with cart
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cart_id", nullable = false)
     private Cart cart;
 
-    // reference to product (from inventory-service)
     @Column(nullable = false)
     private Long productId;
 

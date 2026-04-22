@@ -1,13 +1,12 @@
 package com.scm.cart.service;
 
-import com.scm.cart.entity.CartItem;
-import java.util.List;
+import com.scm.cart.dto.response.CartResponse;
 
 public interface CartService {
 
     void addItemToCart(Long userId, Long productId, int quantity);
 
-    List<CartItem> getCartByUserId(Long userId);
+    CartResponse getCartByUserId(Long userId);
 
     void updateItemQuantity(Long userId, Long productId, int quantity);
 
