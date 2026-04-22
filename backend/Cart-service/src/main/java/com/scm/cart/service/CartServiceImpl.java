@@ -20,7 +20,7 @@ public class CartServiceImpl implements CartService {
     @Override
     public void addToCart(Long userId, Long productId, int quantity) {
 
-        // 1️⃣ Get or create cart
+        // Get or create cart
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseGet(() -> {
                     Cart newCart = new Cart();
@@ -28,20 +28,20 @@ public class CartServiceImpl implements CartService {
                     return cartRepository.save(newCart);
                 });
 
-        // 2️⃣ Check if item already exists in cart
+        // Check if item already exists in cart
         List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
 
         Optional<CartItem> existingItem = items.stream()
                 .filter(item -> item.getProductId().equals(productId))
                 .findFirst();
 
-        // 3️⃣ If exists → update quantity
+        // If exists → update quantity
         if (existingItem.isPresent()) {
             CartItem item = existingItem.get();
             item.setQuantity(item.getQuantity() + quantity);
             cartItemRepository.save(item);
         }
-        // 4️⃣ If not → create new item
+        // If not → create new item
         else {
             CartItem newItem = new CartItem();
             newItem.setCartId(cart.getId());
