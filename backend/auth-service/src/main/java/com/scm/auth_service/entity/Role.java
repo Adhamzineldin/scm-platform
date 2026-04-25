@@ -1,4 +1,4 @@
-package auth_service.entity;
+package com.scm.auth_service.entity;
 
 public enum Role {
     ADMIN,

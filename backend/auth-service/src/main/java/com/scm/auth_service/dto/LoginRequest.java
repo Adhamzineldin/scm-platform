@@ -1,4 +1,4 @@
-package auth_service.dto;
+package com.scm.auth_service.dto;
 
 import lombok.Getter;
 import lombok.Setter;

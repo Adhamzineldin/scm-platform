@@ -1,6 +1,6 @@
-package auth_service.config;
+package com.scm.auth_service.config;
 
-import auth_service.security.JwtFilter;
+import com.scm.auth_service.security.JwtFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
