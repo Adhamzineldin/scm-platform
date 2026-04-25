@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -57,6 +58,7 @@ class OrderServiceLoadTest {
         OrderItemRequest item = new OrderItemRequest();
         item.setSku("SKU-LOAD-" + UUID.randomUUID().toString().substring(0, 8));
         item.setQuantity(1);
+        item.setUnitPrice(BigDecimal.ONE);
 
         OrderRequest request = new OrderRequest();
         request.setIdempotencyKey(idempotencyKey);
@@ -77,11 +79,24 @@ class OrderServiceLoadTest {
         return order;
     }
 
-    private OrderResponse buildResponse(Long id) {
+    private OrderResponse buildResponseFromOrder(Order o) {
+        OrderResponse response = new OrderResponse();
+        response.setId(o.getId());
+        response.setUserId(o.getUserId());
+        response.setStatus(o.getStatus());
+        response.setShippingAddress(o.getShippingAddress());
+        response.setIdempotencyKey(o.getIdempotencyKey());
+        response.setCreatedAt(o.getCreatedAt());
+        response.setUpdatedAt(o.getUpdatedAt());
+        response.setItems(Collections.emptyList());
+        return response;
+    }
+
+    private OrderResponse stubOrderResponse(long id, OrderStatus status) {
         OrderResponse response = new OrderResponse();
         response.setId(id);
         response.setUserId("load-user");
-        response.setStatus(OrderStatus.CREATED);
+        response.setStatus(status);
         response.setShippingAddress("Load Test Address");
         response.setIdempotencyKey("key-" + id);
         response.setCreatedAt(LocalDateTime.now());
@@ -113,7 +128,7 @@ class OrderServiceLoadTest {
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderMapper.toResponse(any(Order.class))).thenAnswer(invocation -> {
             Order o = invocation.getArgument(0);
-            return buildResponse(o.getId());
+            return buildResponseFromOrder(o);
         });
 
         Instant start = Instant.now();
@@ -173,7 +188,8 @@ class OrderServiceLoadTest {
         List<Long> responseIds = Collections.synchronizedList(new ArrayList<>());
 
         Order existingOrder = buildOrder(42L);
-        OrderResponse existingResponse = buildResponse(42L);
+        existingOrder.setStatus(OrderStatus.VALIDATED);
+        OrderResponse existingResponse = stubOrderResponse(42L, OrderStatus.VALIDATED);
 
         // First call creates, subsequent calls find existing
         when(orderRepository.findByUserIdAndIdempotencyKey("user-1", sharedKey))
@@ -224,7 +240,7 @@ class OrderServiceLoadTest {
         AtomicInteger failureCount = new AtomicInteger(0);
 
         PagedResponse<OrderResponse> mockResponse = PagedResponse.<OrderResponse>builder()
-                .content(List.of(buildResponse(1L), buildResponse(2L)))
+                .content(List.of(stubOrderResponse(1L, OrderStatus.CREATED), stubOrderResponse(2L, OrderStatus.CREATED)))
                 .pageNumber(0)
                 .pageSize(10)
                 .totalElements(2)
@@ -234,7 +250,7 @@ class OrderServiceLoadTest {
 
         when(orderRepository.findAll(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(buildOrder(1L), buildOrder(2L))));
-        when(paginationMapper.toPagedResponse(any(), any())).thenReturn(mockResponse);
+        doReturn(mockResponse).when(paginationMapper).toPagedResponse(any(), any());
 
         Instant start = Instant.now();
 
@@ -296,17 +312,17 @@ class OrderServiceLoadTest {
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderMapper.toResponse(any(Order.class))).thenAnswer(invocation -> {
             Order o = invocation.getArgument(0);
-            return buildResponse(o.getId());
+            return buildResponseFromOrder(o);
         });
 
         // Setup read mocks
         PagedResponse<OrderResponse> mockPagedResponse = PagedResponse.<OrderResponse>builder()
-                .content(List.of(buildResponse(1L)))
+                .content(List.of(stubOrderResponse(1L, OrderStatus.CREATED)))
                 .pageNumber(0).pageSize(10).totalElements(1).totalPages(1).isLast(true)
                 .build();
         when(orderRepository.findByUserId(anyString(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(buildOrder(1L))));
-        when(paginationMapper.toPagedResponse(any(), any())).thenReturn(mockPagedResponse);
+        doReturn(mockPagedResponse).when(paginationMapper).toPagedResponse(any(), any());
 
         Instant start = Instant.now();
 
@@ -372,7 +388,7 @@ class OrderServiceLoadTest {
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderMapper.toResponse(any(Order.class))).thenAnswer(invocation -> {
             Order o = invocation.getArgument(0);
-            return buildResponse(o.getId());
+            return buildResponseFromOrder(o);
         });
 
         int orderCount = 500;
@@ -392,6 +408,6 @@ class OrderServiceLoadTest {
                 (double) orderCount / (duration.toMillis() / 1000.0));
 
         assertThat(results).hasSize(orderCount);
-        assertThat(results).allMatch(r -> r.getStatus() == OrderStatus.CREATED);
+        assertThat(results).allMatch(r -> r.getStatus() == OrderStatus.VALIDATED);
     }
 }
