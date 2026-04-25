@@ -1,0 +1,14 @@
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\AuthServiceApplication.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\config\AppConfig.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\config\SecurityConfig.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\controller\AuthController.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\controller\DashboardController.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\dto\AuthResponse.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\dto\LoginRequest.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\dto\RegisterRequest.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\entity\Role.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\entity\User.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\repository\UserRepository.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\security\JwtFilter.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\security\JwtService.java
+C:\Users\Malak\OneDrive\Attachments\auth-service\src\main\java\auth_service\service\AuthService.java
