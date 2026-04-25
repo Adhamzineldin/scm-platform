@@ -50,12 +50,12 @@ public class OrderService {
     
     private OrderResponse processNewOrder(String userId, OrderRequest orderRequest) {
         orderValidator.validateOrder(orderRequest);
-        // TODO: Uncomment when inventory is implemented
-        // reserveInventory(orderRequest.getItems());
+        reserveInventory(orderRequest.getItems());
 
         Order order = orderMapper.toEntity(orderRequest);
         order.setUserId(userId);
         order.setIdempotencyKey(orderRequest.getIdempotencyKey());
+        order.setStatus(OrderStatus.VALIDATED);
 
         Order savedOrder = orderRepository.save(order);
         OrderResponse response = orderMapper.toResponse(savedOrder);

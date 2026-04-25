@@ -24,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -56,6 +57,7 @@ class OrderServiceTest {
         OrderItemRequest itemRequest = new OrderItemRequest();
         itemRequest.setSku("SKU-001");
         itemRequest.setQuantity(2);
+        itemRequest.setUnitPrice(BigDecimal.valueOf(9.99));
 
         orderRequest = new OrderRequest();
         orderRequest.setIdempotencyKey("idem-key-123");
@@ -84,7 +86,7 @@ class OrderServiceTest {
         orderResponse = new OrderResponse();
         orderResponse.setId(1L);
         orderResponse.setUserId("user-1");
-        orderResponse.setStatus(OrderStatus.CREATED);
+        orderResponse.setStatus(OrderStatus.VALIDATED);
         orderResponse.setShippingAddress("123 Main St");
         orderResponse.setIdempotencyKey("idem-key-123");
         orderResponse.setCreatedAt(LocalDateTime.now());
@@ -113,7 +115,7 @@ class OrderServiceTest {
             assertThat(result).isNotNull();
             assertThat(result.getId()).isEqualTo(1L);
             assertThat(result.getUserId()).isEqualTo("user-1");
-            assertThat(result.getStatus()).isEqualTo(OrderStatus.CREATED);
+            assertThat(result.getStatus()).isEqualTo(OrderStatus.VALIDATED);
 
             verify(orderValidator).validateOrder(orderRequest);
             verify(inventoryClient).reserveBulkStock(orderRequest.getItems());
@@ -207,6 +209,7 @@ class OrderServiceTest {
             ArgumentCaptor<OrderResponse> captor = ArgumentCaptor.forClass(OrderResponse.class);
             verify(orderEventProducer).sendOrderCreatedEvent(captor.capture());
             assertThat(captor.getValue().getId()).isEqualTo(1L);
+            assertThat(captor.getValue().getStatus()).isEqualTo(OrderStatus.VALIDATED);
         }
 
         @Test
@@ -215,9 +218,11 @@ class OrderServiceTest {
             OrderItemRequest item1 = new OrderItemRequest();
             item1.setSku("SKU-001");
             item1.setQuantity(2);
+            item1.setUnitPrice(BigDecimal.ONE);
             OrderItemRequest item2 = new OrderItemRequest();
             item2.setSku("SKU-002");
             item2.setQuantity(5);
+            item2.setUnitPrice(BigDecimal.ONE);
             orderRequest.setItems(List.of(item1, item2));
 
             when(orderRepository.findByUserIdAndIdempotencyKey("user-1", "idem-key-123"))
@@ -300,7 +305,7 @@ class OrderServiceTest {
                     .build();
 
             when(orderRepository.findAll(pageable)).thenReturn(orderPage);
-            when(paginationMapper.toPagedResponse(eq(orderPage), any())).thenReturn(expectedResponse);
+            doReturn(expectedResponse).when(paginationMapper).toPagedResponse(eq(orderPage), any());
 
             PagedResponse<OrderResponse> result = orderService.getAllOrders(0, 10);
 
@@ -325,7 +330,7 @@ class OrderServiceTest {
                     .build();
 
             when(orderRepository.findAll(pageable)).thenReturn(emptyPage);
-            when(paginationMapper.toPagedResponse(eq(emptyPage), any())).thenReturn(emptyResponse);
+            doReturn(emptyResponse).when(paginationMapper).toPagedResponse(eq(emptyPage), any());
 
             PagedResponse<OrderResponse> result = orderService.getAllOrders(0, 10);
 
@@ -355,7 +360,7 @@ class OrderServiceTest {
                     .build();
 
             when(orderRepository.findByUserId("user-1", pageable)).thenReturn(userOrderPage);
-            when(paginationMapper.toPagedResponse(eq(userOrderPage), any())).thenReturn(expectedResponse);
+            doReturn(expectedResponse).when(paginationMapper).toPagedResponse(eq(userOrderPage), any());
 
             PagedResponse<OrderResponse> result = orderService.getOrdersForUser("user-1", 0, 10);
 
@@ -378,7 +383,7 @@ class OrderServiceTest {
                     .build();
 
             when(orderRepository.findByUserId("unknown-user", pageable)).thenReturn(emptyPage);
-            when(paginationMapper.toPagedResponse(eq(emptyPage), any())).thenReturn(emptyResponse);
+            doReturn(emptyResponse).when(paginationMapper).toPagedResponse(eq(emptyPage), any());
 
             PagedResponse<OrderResponse> result = orderService.getOrdersForUser("unknown-user", 0, 10);
 

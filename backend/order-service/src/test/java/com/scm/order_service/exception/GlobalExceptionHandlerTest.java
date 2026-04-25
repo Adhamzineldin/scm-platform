@@ -16,9 +16,12 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class GlobalExceptionHandlerTest {
@@ -31,7 +34,7 @@ class GlobalExceptionHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new GlobalExceptionHandler();
-        when(request.getRequestURI()).thenReturn("/api/orders");
+        lenient().when(request.getRequestURI()).thenReturn("/api/orders");
     }
 
     @Test
@@ -84,11 +87,11 @@ class GlobalExceptionHandlerTest {
         MethodArgumentNotValidException ex = mock(MethodArgumentNotValidException.class);
         when(ex.getBindingResult()).thenReturn(bindingResult);
 
-        ErrorResponse response = handler.handleValidationExceptions(ex, request);
+        Map<String, String> errors = handler.handleValidationExceptions(ex);
 
-        assertThat(response.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
-        assertThat(response.getMessage()).contains("shippingAddress");
-        assertThat(response.getMessage()).contains("items");
+        assertThat(errors)
+                .containsEntry("shippingAddress", "Shipping address is required")
+                .containsEntry("items", "Order must contain at least one item");
     }
 
     @Test

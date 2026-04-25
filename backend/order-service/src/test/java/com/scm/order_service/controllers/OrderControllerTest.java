@@ -11,11 +11,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -27,7 +30,9 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(OrderController.class)
+@WebMvcTest(controllers = OrderController.class)
+@ActiveProfiles("mvc-test")
+@Import(GlobalExceptionHandler.class)
 class OrderControllerTest {
 
     @Autowired
@@ -47,6 +52,7 @@ class OrderControllerTest {
         OrderItemRequest itemRequest = new OrderItemRequest();
         itemRequest.setSku("SKU-001");
         itemRequest.setQuantity(2);
+        itemRequest.setUnitPrice(BigDecimal.valueOf(9.99));
 
         validRequest = new OrderRequest();
         validRequest.setIdempotencyKey("idem-key-123");
@@ -60,7 +66,7 @@ class OrderControllerTest {
         orderResponse = new OrderResponse();
         orderResponse.setId(1L);
         orderResponse.setUserId("user-1");
-        orderResponse.setStatus(OrderStatus.CREATED);
+        orderResponse.setStatus(OrderStatus.VALIDATED);
         orderResponse.setShippingAddress("123 Main St");
         orderResponse.setIdempotencyKey("idem-key-123");
         orderResponse.setCreatedAt(LocalDateTime.now());
@@ -87,7 +93,7 @@ class OrderControllerTest {
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.id").value(1))
                     .andExpect(jsonPath("$.userId").value("user-1"))
-                    .andExpect(jsonPath("$.status").value("CREATED"))
+                    .andExpect(jsonPath("$.status").value("VALIDATED"))
                     .andExpect(jsonPath("$.shippingAddress").value("123 Main St"))
                     .andExpect(jsonPath("$.idempotencyKey").value("idem-key-123"))
                     .andExpect(jsonPath("$.items", hasSize(1)))
@@ -124,7 +130,7 @@ class OrderControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(validRequest)))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value(containsString("shippingAddress")));
+                    .andExpect(jsonPath("$.shippingAddress").exists());
         }
 
         @Test
@@ -137,7 +143,7 @@ class OrderControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(validRequest)))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value(containsString("idempotencyKey")));
+                    .andExpect(jsonPath("$.idempotencyKey").exists());
         }
 
         @Test
@@ -150,7 +156,7 @@ class OrderControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(validRequest)))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value(containsString("items")));
+                    .andExpect(jsonPath("$.items").exists());
         }
 
         @Test
@@ -171,6 +177,7 @@ class OrderControllerTest {
             OrderItemRequest badItem = new OrderItemRequest();
             badItem.setSku("");
             badItem.setQuantity(1);
+            badItem.setUnitPrice(BigDecimal.ONE);
             validRequest.setItems(List.of(badItem));
 
             mockMvc.perform(post("/api/orders")
@@ -186,6 +193,7 @@ class OrderControllerTest {
             OrderItemRequest badItem = new OrderItemRequest();
             badItem.setSku("SKU-001");
             badItem.setQuantity(0);
+            badItem.setUnitPrice(BigDecimal.ONE);
             validRequest.setItems(List.of(badItem));
 
             mockMvc.perform(post("/api/orders")
@@ -201,6 +209,7 @@ class OrderControllerTest {
             OrderItemRequest badItem = new OrderItemRequest();
             badItem.setSku("SKU-001");
             badItem.setQuantity(-5);
+            badItem.setUnitPrice(BigDecimal.ONE);
             validRequest.setItems(List.of(badItem));
 
             mockMvc.perform(post("/api/orders")
