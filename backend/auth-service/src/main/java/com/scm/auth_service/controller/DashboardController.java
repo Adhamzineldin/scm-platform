@@ -1,7 +1,7 @@
-package com.scm.auth_service.controller;
+package auth_service.controller;
 
-import com.scm.auth_service.entity.User;
-import com.scm.auth_service.repository.UserRepository;
+import auth_service.entity.User;
+import auth_service.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;

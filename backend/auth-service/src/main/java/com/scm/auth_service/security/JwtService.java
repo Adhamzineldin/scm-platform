@@ -1,4 +1,4 @@
-package com.scm.auth_service.security;
+package auth_service.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

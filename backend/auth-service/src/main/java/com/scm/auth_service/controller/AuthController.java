@@ -1,9 +1,9 @@
-package com.scm.auth_service.controller;
+package auth_service.controller;
 
-import com.scm.auth_service.dto.AuthResponse;
-import com.scm.auth_service.dto.LoginRequest;
-import com.scm.auth_service.dto.RegisterRequest;
-import com.scm.auth_service.service.AuthService;
+import auth_service.dto.AuthResponse;
+import auth_service.dto.LoginRequest;
+import auth_service.dto.RegisterRequest;
+import auth_service.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 

@@ -1,6 +1,6 @@
-package com.scm.auth_service.dto;
+package auth_service.dto;
 
-import com.scm.auth_service.entity.Role;
+import auth_service.entity.Role;
 import lombok.Getter;
 import lombok.Setter;
 

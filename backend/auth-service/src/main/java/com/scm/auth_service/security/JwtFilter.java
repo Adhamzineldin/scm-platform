@@ -1,7 +1,7 @@
-package com.scm.auth_service.security;
+package auth_service.security;
 
-import com.scm.auth_service.entity.User;
-import com.scm.auth_service.repository.UserRepository;
+import auth_service.entity.User;
+import auth_service.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

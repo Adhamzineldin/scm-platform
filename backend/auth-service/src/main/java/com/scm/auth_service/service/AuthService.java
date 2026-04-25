@@ -1,11 +1,9 @@
-package com.scm.auth_service.service;
+package auth_service.service;
 
-import com.scm.auth_service.dto.AuthResponse;
-import com.scm.auth_service.dto.LoginRequest;
-import com.scm.auth_service.dto.RegisterRequest;
-import com.scm.auth_service.entity.User;
-import com.scm.auth_service.repository.UserRepository;
-import com.scm.auth_service.security.JwtService;
+import auth_service.dto.*;
+import auth_service.entity.User;
+import auth_service.repository.UserRepository;
+import auth_service.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
