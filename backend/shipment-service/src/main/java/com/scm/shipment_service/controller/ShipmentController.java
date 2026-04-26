@@ -1,0 +1,133 @@
+package com.scm.shipment_service.controller;
+
+import com.scm.shipment_service.dto.DispatchRequest;
+import com.scm.shipment_service.dto.ShipmentDetailResponse;
+import com.scm.shipment_service.dto.ShipmentRequest;
+import com.scm.shipment_service.dto.ShipmentResponse;
+import com.scm.shipment_service.entity.DispatchRecord;
+import com.scm.shipment_service.entity.Shipment;
+import com.scm.shipment_service.entity.ShipmentHistory;
+import com.scm.shipment_service.mapper.ShipmentMapper;
+import com.scm.shipment_service.service.ShipmentService;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/shipments")
+public class ShipmentController {
+
+    private final ShipmentService service;
+
+    public ShipmentController(ShipmentService service) {
+        this.service = service;
+    }
+
+    /**
+     * Create a new shipment for an order.
+     */
+    @PostMapping
+    public ShipmentResponse create(@RequestBody ShipmentRequest req) {
+        return ShipmentMapper.toResponse(service.create(req.getOrderId()));
+    }
+
+    /**
+     * Dispatch a shipment to carrier with tracking.
+     */
+    @PostMapping("/{id}/dispatch")
+    public ShipmentResponse dispatch(@PathVariable Long id, @RequestBody DispatchRequest req) {
+        return ShipmentMapper.toResponse(service.dispatch(id, req));
+    }
+
+    /**
+     * Get detailed shipment information with tracking and history.
+     */
+    @GetMapping("/{id}")
+    public ShipmentDetailResponse getDetails(@PathVariable Long id) {
+        Shipment shipment = service.getDetails(id);
+        return mapToDetailResponse(shipment);
+    }
+
+    /**
+     * Get dispatch history for a shipment.
+     */
+    @GetMapping("/{id}/dispatches")
+    public List<ShipmentDetailResponse.DispatchRecordDto> getDispatchHistory(@PathVariable Long id) {
+        List<DispatchRecord> dispatches = service.getDispatchHistory(id);
+        return dispatches.stream()
+                .map(this::mapToDispatchDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get status history for a shipment.
+     */
+    @GetMapping("/{id}/history")
+    public List<ShipmentDetailResponse.ShipmentHistoryDto> getStatusHistory(@PathVariable Long id) {
+        List<ShipmentHistory> history = service.getStatusHistory(id);
+        return history.stream()
+                .map(this::mapToHistoryDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get current dispatch status.
+     */
+    @GetMapping("/{id}/tracking")
+    public ShipmentDetailResponse.DispatchRecordDto getCurrentDispatch(@PathVariable Long id) {
+        DispatchRecord dispatch = service.getCurrentDispatch(id);
+        return dispatch != null ? mapToDispatchDto(dispatch) : null;
+    }
+
+    // ===== Mapping Helper Methods =====
+
+    private ShipmentDetailResponse mapToDetailResponse(Shipment shipment) {
+        ShipmentDetailResponse response = new ShipmentDetailResponse();
+        response.setId(shipment.getId());
+        response.setOrderId(shipment.getOrderId());
+        response.setTrackingNumber(shipment.getTrackingNumber());
+        response.setStatus(shipment.getStatus() != null ? shipment.getStatus().name() : null);
+        response.setCarrier(shipment.getCarrier());
+        response.setCreatedAt(shipment.getCreatedAt());
+        response.setUpdatedAt(shipment.getUpdatedAt());
+
+        // Get current dispatch
+        DispatchRecord dispatch = service.getCurrentDispatch(shipment.getId());
+        if (dispatch != null) {
+            response.setCurrentDispatch(mapToDispatchDto(dispatch));
+        }
+
+        // Get history
+        List<ShipmentHistory> history = service.getStatusHistory(shipment.getId());
+        response.setHistory(history.stream()
+                .map(this::mapToHistoryDto)
+                .collect(Collectors.toList()));
+
+        return response;
+    }
+
+    private ShipmentDetailResponse.DispatchRecordDto mapToDispatchDto(DispatchRecord dispatch) {
+        ShipmentDetailResponse.DispatchRecordDto dto = new ShipmentDetailResponse.DispatchRecordDto();
+        dto.setId(dispatch.getId());
+        dto.setDispatchedAt(dispatch.getDispatchedAt());
+        dto.setCarrierName(dispatch.getCarrierName());
+        dto.setCarrierReference(dispatch.getCarrierReference());
+        dto.setPickupLocation(dispatch.getPickupLocation());
+        dto.setDeliveryAddress(dispatch.getDeliveryAddress());
+        dto.setNotes(dispatch.getNotes());
+        return dto;
+    }
+
+    private ShipmentDetailResponse.ShipmentHistoryDto mapToHistoryDto(ShipmentHistory history) {
+        ShipmentDetailResponse.ShipmentHistoryDto dto = new ShipmentDetailResponse.ShipmentHistoryDto();
+        dto.setId(history.getId());
+        dto.setPreviousStatus(history.getPreviousStatus() != null ? history.getPreviousStatus().name() : null);
+        dto.setNewStatus(history.getNewStatus() != null ? history.getNewStatus().name() : null);
+        dto.setChangedAt(history.getChangedAt());
+        dto.setChangedBy(history.getChangedBy());
+        dto.setLocation(history.getLocation());
+        dto.setDescription(history.getDescription());
+        return dto;
+    }
+}
