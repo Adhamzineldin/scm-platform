@@ -7,3 +7,8 @@ scrape_configs:
     static_configs:
       - targets:
           - inventory-service:2502
+  - job_name: warehouse-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - warehouse-service:2504

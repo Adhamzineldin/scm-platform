@@ -1,6 +1,7 @@
 package com.scm.order_service.load;
 
 import com.scm.order_service.client.InventoryClient;
+import com.scm.order_service.client.WarehouseClient;
 import com.scm.order_service.dto.orders.*;
 import com.scm.order_service.entity.Order;
 import com.scm.order_service.enums.OrderStatus;
@@ -40,6 +41,7 @@ class OrderServiceLoadTest {
     @Mock private OrderRepository orderRepository;
     @Mock private OrderMapper orderMapper;
     @Mock private InventoryClient inventoryClient;
+    @Mock private WarehouseClient warehouseClient;
     @Mock private OrderEventProducer orderEventProducer;
     @Mock private PaginationMapper paginationMapper;
     @Mock private OrderValidator orderValidator;

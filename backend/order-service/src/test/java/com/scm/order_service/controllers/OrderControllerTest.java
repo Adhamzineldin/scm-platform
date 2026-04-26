@@ -248,6 +248,33 @@ class OrderControllerTest {
     // ===================== GET /api/orders/my-orders =====================
 
     @Nested
+    @DisplayName("GET /api/orders")
+    class GetOrders {
+
+        @Test
+        @DisplayName("should return paginated orders with 200")
+        void shouldReturnOrders() throws Exception {
+            PagedResponse<OrderResponse> pagedResponse = PagedResponse.<OrderResponse>builder()
+                    .content(List.of(orderResponse))
+                    .pageNumber(0)
+                    .pageSize(10)
+                    .totalElements(1)
+                    .totalPages(1)
+                    .isLast(true)
+                    .build();
+
+            when(orderService.getAllOrders(0, 10)).thenReturn(pagedResponse);
+
+            mockMvc.perform(get("/api/orders")
+                            .param("page", "0")
+                            .param("size", "10"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content", hasSize(1)))
+                    .andExpect(jsonPath("$.content[0].id").value(1));
+        }
+    }
+
+    @Nested
     @DisplayName("GET /api/orders/my-orders")
     class GetMyOrders {
 
@@ -303,6 +330,26 @@ class OrderControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.pageNumber").value(0))
                     .andExpect(jsonPath("$.pageSize").value(10));
+        }
+    }
+
+    @Nested
+    @DisplayName("PATCH /api/orders/{orderId}/warehouse-complete")
+    class MarkWarehouseComplete {
+
+        @Test
+        @DisplayName("should mark warehouse completion and return updated order")
+        void shouldMarkWarehouseComplete() throws Exception {
+            when(orderService.markOrderPicked(1L, "worker-1")).thenReturn(orderResponse);
+
+            mockMvc.perform(patch("/api/orders/1/warehouse-complete")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"workerId":"worker-1"}
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(1))
+                    .andExpect(jsonPath("$.status").value("VALIDATED"));
         }
     }
 }

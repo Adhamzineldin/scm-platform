@@ -3,6 +3,7 @@ package com.scm.order_service.controllers;
 import com.scm.order_service.dto.orders.OrderRequest;
 import com.scm.order_service.dto.orders.OrderResponse;
 import com.scm.order_service.dto.orders.PagedResponse;
+import com.scm.order_service.dto.warehouse.WarehouseCompletionRequest;
 import com.scm.order_service.services.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class OrderController {
         return orderService.createOrder(userId, orderRequest);
     }
 
+    @GetMapping
     @ResponseStatus(HttpStatus.OK)
     public PagedResponse<OrderResponse> getOrders(
             @RequestParam(value = "page", defaultValue = "0", required = false) int page,
@@ -40,5 +42,13 @@ public class OrderController {
             @RequestParam(value = "size", defaultValue = "10", required = false) int size) {
 
         return orderService.getOrdersForUser(userId, page, size);
+    }
+
+    @PatchMapping("/{orderId}/warehouse-complete")
+    @ResponseStatus(HttpStatus.OK)
+    public OrderResponse markWarehouseComplete(
+            @PathVariable Long orderId,
+            @Valid @RequestBody WarehouseCompletionRequest request) {
+        return orderService.markOrderPicked(orderId, request.getWorkerId());
     }
 }
