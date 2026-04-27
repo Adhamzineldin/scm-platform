@@ -41,6 +41,7 @@ class OrderServiceTest {
     @Mock private OrderRepository orderRepository;
     @Mock private OrderMapper orderMapper;
     @Mock private InventoryClient inventoryClient;
+    @Mock private com.scm.order_service.client.WarehouseClient warehouseClient;
     @Mock private OrderEventProducer orderEventProducer;
     @Mock private PaginationMapper paginationMapper;
     @Mock private OrderValidator orderValidator;
@@ -120,6 +121,7 @@ class OrderServiceTest {
             verify(orderValidator).validateOrder(orderRequest);
             verify(inventoryClient).reserveBulkStock(orderRequest.getItems());
             verify(orderRepository).save(order);
+            verify(warehouseClient).createPickingTasks(any());
             verify(orderEventProducer).sendOrderCreatedEvent(orderResponse);
         }
 
@@ -137,6 +139,7 @@ class OrderServiceTest {
 
             verify(inventoryClient, never()).reserveBulkStock(anyList());
             verify(orderRepository, never()).save(any());
+            verify(warehouseClient, never()).createPickingTasks(any());
             verify(orderEventProducer, never()).sendOrderCreatedEvent(any());
         }
 
@@ -152,6 +155,7 @@ class OrderServiceTest {
                     .hasMessageContaining("SKU-001");
 
             verify(orderRepository, never()).save(any());
+            verify(warehouseClient, never()).createPickingTasks(any());
             verify(orderEventProducer, never()).sendOrderCreatedEvent(any());
         }
 
@@ -207,6 +211,7 @@ class OrderServiceTest {
             orderService.createOrder("user-1", orderRequest);
 
             ArgumentCaptor<OrderResponse> captor = ArgumentCaptor.forClass(OrderResponse.class);
+            verify(warehouseClient).createPickingTasks(any());
             verify(orderEventProducer).sendOrderCreatedEvent(captor.capture());
             assertThat(captor.getValue().getId()).isEqualTo(1L);
             assertThat(captor.getValue().getStatus()).isEqualTo(OrderStatus.VALIDATED);
@@ -236,6 +241,7 @@ class OrderServiceTest {
 
             assertThat(result).isNotNull();
             verify(inventoryClient).reserveBulkStock(argThat(items -> items.size() == 2));
+            verify(warehouseClient).createPickingTasks(any());
         }
     }
 
@@ -254,6 +260,7 @@ class OrderServiceTest {
 
             when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
             when(orderRepository.save(order)).thenReturn(order);
+            when(orderMapper.toResponse(order)).thenReturn(orderResponse);
 
             orderService.handleOrderPackedEvent(event);
 
@@ -281,6 +288,25 @@ class OrderServiceTest {
             assertThatThrownBy(() -> orderService.handleOrderPackedEvent(event))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("Order not found with ID: 999");
+        }
+    }
+
+    @Nested
+    @DisplayName("markOrderPicked")
+    class MarkOrderPicked {
+
+        @Test
+        @DisplayName("should update order status and return mapped response")
+        void shouldMarkOrderPicked() {
+            when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+            when(orderRepository.save(order)).thenReturn(order);
+            when(orderMapper.toResponse(order)).thenReturn(orderResponse);
+
+            OrderResponse result = orderService.markOrderPicked(1L, "worker-2");
+
+            assertThat(result).isEqualTo(orderResponse);
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.PICKED);
+            verify(orderEventProducer).sendOrderReadyForDispatchEvent(any(OrderReadyForDispatchEvent.class));
         }
     }
 

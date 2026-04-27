@@ -1,13 +1,15 @@
 package com.scm.order_service.services;
 
 import com.scm.order_service.client.InventoryClient;
-import com.scm.order_service.client.ShipmentClient;
+import com.scm.order_service.client.WarehouseClient;
 import com.scm.order_service.dto.messaging.OrderPackedEvent;
 import com.scm.order_service.dto.messaging.OrderReadyForDispatchEvent;
 import com.scm.order_service.dto.orders.OrderRequest;
 import com.scm.order_service.dto.orders.OrderResponse;
 import com.scm.order_service.dto.orders.OrderItemRequest;
 import com.scm.order_service.dto.orders.PagedResponse;
+import com.scm.order_service.dto.warehouse.OrderTaskRequest;
+import com.scm.order_service.exception.WarehouseIntegrationException;
 import com.scm.order_service.entity.Order;
 import com.scm.order_service.enums.OrderStatus;
 import com.scm.order_service.exception.InsufficientStockException;
@@ -36,6 +38,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
     private final InventoryClient inventoryClient;
+    private final WarehouseClient warehouseClient;
     private final OrderEventProducer orderEventProducer;
     private final PaginationMapper paginationMapper;
     private final OrderValidator orderValidator;
@@ -60,6 +63,7 @@ public class OrderService {
         Order savedOrder = orderRepository.save(order);
         OrderResponse response = orderMapper.toResponse(savedOrder);
 
+        createWarehouseTasks(response);
         orderEventProducer.sendOrderCreatedEvent(response);
         return response;
     }
@@ -69,14 +73,7 @@ public class OrderService {
     public void handleOrderPackedEvent(OrderPackedEvent event) {
         log.info("Received Kafka event: Warehouse finished packing Order ID {}", event.getOrderId());
 
-        Order order = orderRepository.findById(event.getOrderId())
-                .orElseThrow(() -> new RuntimeException("Order not found with ID: " + event.getOrderId()));
-
-        transitionStatus(order, OrderStatus.PICKED);
-
-        orderEventProducer.sendOrderReadyForDispatchEvent(
-                new OrderReadyForDispatchEvent(order.getId(), order.getShippingAddress())
-        );
+        markOrderPicked(event.getOrderId(), event.getWorkerId());
     }
 
     private void transitionStatus(Order order, OrderStatus newStatus) {
@@ -110,6 +107,21 @@ public class OrderService {
         return paginationMapper.toPagedResponse(orderPage, orderMapper::toResponse);
     }
 
+    @Transactional
+    public OrderResponse markOrderPicked(Long orderId, String workerId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found with ID: " + orderId));
+
+        log.info("Marking Order ID {} as PICKED by worker {}", orderId, workerId);
+        transitionStatus(order, OrderStatus.PICKED);
+
+        orderEventProducer.sendOrderReadyForDispatchEvent(
+                new OrderReadyForDispatchEvent(order.getId(), order.getShippingAddress())
+        );
+
+        return orderMapper.toResponse(order);
+    }
+
     private void reserveInventory(List<OrderItemRequest> items) {
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("Order must contain at least one item");
@@ -120,6 +132,30 @@ public class OrderService {
             String missingItems = String.join(", ", failedSkus);
             throw new InsufficientStockException("Checkout failed. Stock unavailable for: " + missingItems);
         }
+    }
+
+    private void createWarehouseTasks(OrderResponse orderResponse) {
+        try {
+            warehouseClient.createPickingTasks(mapWarehouseTaskRequest(orderResponse));
+        }
+        catch (feign.FeignException ex) {
+            throw new WarehouseIntegrationException("Warehouse Service is currently unavailable. Order workflow could not continue.", ex);
+        }
+    }
+
+    private OrderTaskRequest mapWarehouseTaskRequest(OrderResponse orderResponse) {
+        return OrderTaskRequest.builder()
+                .orderId(orderResponse.getId())
+                .userId(orderResponse.getUserId())
+                .shippingAddress(orderResponse.getShippingAddress())
+                .items(orderResponse.getItems().stream()
+                        .map(item -> com.scm.order_service.dto.warehouse.OrderItemPayload.builder()
+                                .sku(item.getSku())
+                                .quantity(item.getQuantity())
+                                .unitPrice(item.getUnitPrice())
+                                .build())
+                        .toList())
+                .build();
     }
 
 }

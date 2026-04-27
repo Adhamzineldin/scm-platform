@@ -103,7 +103,7 @@ class GlobalExceptionHandlerTest {
         ErrorResponse response = handler.handleFeignException(ex, request);
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
-        assertThat(response.getMessage()).contains("Inventory Service");
+        assertThat(response.getMessage()).contains("downstream service");
     }
 
     @Test

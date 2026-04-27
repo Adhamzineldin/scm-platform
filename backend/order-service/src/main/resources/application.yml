@@ -19,6 +19,10 @@ inventory:
   service:
     url: ${INVENTORY_SERVICE_URL:http://localhost:2502}
 
+warehouse:
+  service:
+    url: ${WAREHOUSE_SERVICE_URL:http://localhost:2504}
+
 eureka:
   client:
     enabled: ${EUREKA_CLIENT_ENABLED:true}

@@ -73,6 +73,7 @@ services:
       - postgres
       - kafka
       - inventory-service
+      - warehouse-service
     ports:
       - "2501:2501"
     environment:
@@ -82,12 +83,29 @@ services:
       SPRING_DATASOURCE_PASSWORD: password
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       INVENTORY_SERVICE_URL: http://inventory-service:2502
+      WAREHOUSE_SERVICE_URL: http://warehouse-service:2504
+      EUREKA_CLIENT_ENABLED: "false"
+
+  warehouse-service:
+    build:
+      context: ./backend/warehouse-service
+    depends_on:
+      - postgres
+    ports:
+      - "2504:2504"
+    environment:
+      SERVER_PORT: 2504
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/scm_warehouse_db
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+      ORDER_SERVICE_URL: http://order-service:2501
       EUREKA_CLIENT_ENABLED: "false"
 
   prometheus:
     image: prom/prometheus:v2.54.1
     depends_on:
       - inventory-service
+      - warehouse-service
     ports:
       - "9090:9090"
     volumes:

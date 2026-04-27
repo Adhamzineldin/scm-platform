@@ -1,2 +1,3 @@
--- Extra database for order-service (inventory uses POSTGRES_DB / logistics_db).
+-- Extra databases for microservices that keep their own data stores.
 CREATE DATABASE scm_order_db;
+CREATE DATABASE scm_warehouse_db;

@@ -62,7 +62,18 @@ public class GlobalExceptionHandler {
         log.error("Downstream service call failed: {}", ex.getMessage());
         return buildErrorResponse(
                 HttpStatus.SERVICE_UNAVAILABLE,
-                "The Inventory Service is currently unavailable. Please try again later.",
+                "A downstream service is currently unavailable. Please try again later.",
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(WarehouseIntegrationException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public ErrorResponse handleWarehouseIntegrationException(WarehouseIntegrationException ex, HttpServletRequest request) {
+        log.error("Warehouse integration failed: {}", ex.getMessage());
+        return buildErrorResponse(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                ex.getMessage(),
                 request.getRequestURI()
         );
     }
