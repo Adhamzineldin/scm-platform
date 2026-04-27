@@ -113,6 +113,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
       discovery-server:
         condition: service_healthy
     ports:
@@ -134,6 +135,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
       discovery-server:
         condition: service_healthy
       inventory-service:
@@ -159,6 +161,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
       discovery-server:
         condition: service_healthy
     ports:
@@ -178,8 +181,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
       kafka:
         condition: service_started
+        required: false
       discovery-server:
         condition: service_healthy
       inventory-service:
@@ -206,8 +211,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
       kafka:
         condition: service_started
+        required: false
       discovery-server:
         condition: service_healthy
     ports:
@@ -228,6 +235,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
       discovery-server:
         condition: service_healthy
     ports:
@@ -248,6 +256,7 @@ services:
     depends_on:
       kafka:
         condition: service_started
+        required: false
       discovery-server:
         condition: service_healthy
     ports:

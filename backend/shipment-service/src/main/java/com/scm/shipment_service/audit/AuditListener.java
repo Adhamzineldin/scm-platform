@@ -1,6 +1,6 @@
 package com.scm.shipment_service.audit;
 
-import com.scm.shipment_service.entity.BaseEntity;
+import com.scm.shipmentservice.entity.BaseEntity;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import java.time.LocalDateTime;
