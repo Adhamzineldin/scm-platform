@@ -6,6 +6,7 @@ import type { Role } from '../../api/authApi.ts'
 import { extractErrorMessage } from '../../api/axiosInstance.ts'
 
 const ROLES: Role[] = [
+  'CUSTOMER',
   'STAFF',
   'ADMIN',
   'INVENTORY_MANAGER',

@@ -1,7 +1,8 @@
 package com.scm.auth_service.entity;
 
 public enum Role {
-    /** Default low-privilege role assigned to all self-registered users. */
+    /** Default role assigned to all self-registered users. Can place orders. */
+    CUSTOMER,
     STAFF,
     ADMIN,
     INVENTORY_MANAGER,

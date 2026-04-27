@@ -1,6 +1,7 @@
 import api from './axiosInstance.ts'
 
 export type Role =
+  | 'CUSTOMER'
   | 'STAFF'
   | 'ADMIN'
   | 'INVENTORY_MANAGER'

@@ -19,7 +19,7 @@ export default function RegisterPage() {
     mutationFn: register,
     onSuccess: (data) => {
       setAuth(data)
-      toast.success('Account created — your role is STAFF until an admin promotes you')
+      toast.success('Account created — you can now place orders')
       navigate('/dashboard', { replace: true })
     },
     onError: (err) => toast.error(extractErrorMessage(err, 'Registration failed')),
@@ -38,7 +38,7 @@ export default function RegisterPage() {
       >
         <h1 className="text-xl font-semibold text-slate-900">Create account</h1>
         <p className="text-xs text-slate-500">
-          New accounts are created with the <b>STAFF</b> role. An administrator
+          New accounts are created with the <b>CUSTOMER</b> role. An administrator
           can grant you a privileged role afterwards.
         </p>
 

@@ -143,9 +143,29 @@ public class OrderService {
     private void createWarehouseTasks(OrderResponse orderResponse) {
         try {
             warehouseClient.createPickingTasks(mapWarehouseTaskRequest(orderResponse));
+        } catch (feign.FeignException ex) {
+            if (ex.status() >= 400 && ex.status() < 500) {
+                String body = ex.contentUTF8();
+                String msg = body != null && !body.isBlank()
+                        ? extractMessage(body)
+                        : "Warehouse rejected the order (status " + ex.status() + ")";
+                throw new WarehouseIntegrationException(msg, ex);
+            }
+            throw new WarehouseIntegrationException(
+                    "Warehouse Service is currently unavailable. Please try again later.", ex);
         }
-        catch (feign.FeignException ex) {
-            throw new WarehouseIntegrationException("Warehouse Service is currently unavailable. Order workflow could not continue.", ex);
+    }
+
+    private String extractMessage(String json) {
+        try {
+            int idx = json.indexOf("\"message\"");
+            if (idx < 0) return json;
+            int colon = json.indexOf(':', idx);
+            int start = json.indexOf('"', colon + 1) + 1;
+            int end = json.indexOf('"', start);
+            return json.substring(start, end);
+        } catch (Exception e) {
+            return json;
         }
     }
 

@@ -4,6 +4,7 @@ import com.scm.order_service.dto.exception.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -68,14 +69,13 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(WarehouseIntegrationException.class)
-    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
-    public ErrorResponse handleWarehouseIntegrationException(WarehouseIntegrationException ex, HttpServletRequest request) {
-        log.error("Warehouse integration failed: {}", ex.getMessage());
-        return buildErrorResponse(
-                HttpStatus.SERVICE_UNAVAILABLE,
-                ex.getMessage(),
-                request.getRequestURI()
-        );
+    public ResponseEntity<ErrorResponse> handleWarehouseIntegrationException(WarehouseIntegrationException ex, HttpServletRequest request) {
+        Throwable cause = ex.getCause();
+        HttpStatus status = (cause instanceof feign.FeignException fe && fe.status() >= 400 && fe.status() < 500)
+                ? HttpStatus.UNPROCESSABLE_ENTITY
+                : HttpStatus.SERVICE_UNAVAILABLE;
+        log.error("Warehouse integration failed ({}): {}", status.value(), ex.getMessage());
+        return ResponseEntity.status(status).body(buildErrorResponse(status, ex.getMessage(), request.getRequestURI()));
     }
 
     @ResponseStatus(HttpStatus.BAD_REQUEST)
