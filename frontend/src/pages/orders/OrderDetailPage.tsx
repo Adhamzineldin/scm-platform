@@ -1,13 +1,28 @@
 import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { getOrder } from '../../api/ordersApi.ts'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import { getOrder, markOrderWarehouseComplete } from '../../api/ordersApi.ts'
+import { useAuthStore } from '../../store/authStore.ts'
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const qc = useQueryClient()
+  const { role, userId } = useAuthStore()
+  const canComplete = role === 'ADMIN' || role === 'WAREHOUSE_SPECIALIST'
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['order', id],
     queryFn: () => getOrder(id!),
     enabled: !!id,
+  })
+
+  const completeMut = useMutation({
+    mutationFn: () => markOrderWarehouseComplete(id!, userId ?? 'unknown'),
+    onSuccess: () => {
+      toast.success('Order marked as picked')
+      qc.invalidateQueries({ queryKey: ['order', id] })
+    },
+    onError: () => toast.error('Update failed'),
   })
 
   if (isLoading) return <div className="text-slate-500">Loading…</div>
@@ -17,7 +32,18 @@ export default function OrderDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Order #{data.id}</h1>
-        <Link to="/orders" className="text-sm text-indigo-600 hover:underline">← Back</Link>
+        <div className="flex items-center gap-3">
+          {canComplete && data.status === 'VALIDATED' && (
+            <button
+              onClick={() => completeMut.mutate()}
+              disabled={completeMut.isPending}
+              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {completeMut.isPending ? 'Marking…' : 'Mark warehouse complete'}
+            </button>
+          )}
+          <Link to="/orders" className="text-sm text-indigo-600 hover:underline">← Back</Link>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -28,7 +54,7 @@ export default function OrderDetailPage() {
             <div className="flex justify-between"><dt className="text-slate-500">User</dt><dd>{data.userId}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">Created</dt><dd>{new Date(data.createdAt).toLocaleString()}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">Updated</dt><dd>{new Date(data.updatedAt).toLocaleString()}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Idempotency key</dt><dd className="truncate">{data.idempotencyKey}</dd></div>
+            <div className="flex justify-between gap-2"><dt className="text-slate-500">Idempotency key</dt><dd className="truncate">{data.idempotencyKey}</dd></div>
           </dl>
         </div>
 
@@ -63,4 +89,3 @@ export default function OrderDetailPage() {
     </div>
   )
 }
-

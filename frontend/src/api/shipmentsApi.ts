@@ -1,4 +1,5 @@
 import api from './axiosInstance.ts'
+import type { PagedResponse } from './ordersApi.ts'
 
 export interface ShipmentResponse {
   id: number
@@ -44,23 +45,49 @@ export interface ShipmentDetailResponse {
   history: ShipmentHistoryDto[]
 }
 
-export async function listShipments() {
-  const { data } = await api.get<ShipmentResponse[]>('/api/shipments')
+export interface DispatchRequest {
+  carrierName: string
+  carrierReference: string
+  pickupLocation: string
+  deliveryAddress: string
+  notes?: string
+}
+
+export interface ShipmentTrackingResponse {
+  trackingNumber: string
+  status: string
+  carrier: string
+  history: ShipmentHistoryDto[]
+}
+
+export async function listShipments(params: { page?: number; size?: number } = {}): Promise<PagedResponse<ShipmentResponse>> {
+  const { data } = await api.get<PagedResponse<ShipmentResponse>>('/api/shipments', {
+    params: { page: params.page ?? 0, size: params.size ?? 20 },
+  })
   return data
 }
 
-export async function getShipment(id: number | string) {
+export async function getShipment(id: number | string): Promise<ShipmentDetailResponse> {
   const { data } = await api.get<ShipmentDetailResponse>(`/api/shipments/${id}`)
   return data
 }
 
-export async function getShipmentDispatches(id: number | string) {
+export async function getShipmentDispatches(id: number | string): Promise<DispatchRecordDto[]> {
   const { data } = await api.get<DispatchRecordDto[]>(`/api/shipments/${id}/dispatches`)
   return data
 }
 
-export async function getShipmentStatusHistory(id: number | string) {
-  const { data } = await api.get<ShipmentHistoryDto[]>(`/api/shipments/${id}/status-history`)
+export async function getShipmentStatusHistory(id: number | string): Promise<ShipmentHistoryDto[]> {
+  const { data } = await api.get<ShipmentHistoryDto[]>(`/api/shipments/${id}/history`)
   return data
 }
 
+export async function dispatchShipment(id: number | string, body: DispatchRequest): Promise<DispatchRecordDto> {
+  const { data } = await api.post<DispatchRecordDto>(`/api/shipments/${id}/dispatch`, body)
+  return data
+}
+
+export async function getShipmentTracking(id: number | string): Promise<ShipmentTrackingResponse> {
+  const { data } = await api.get<ShipmentTrackingResponse>(`/api/shipments/${id}/tracking`)
+  return data
+}

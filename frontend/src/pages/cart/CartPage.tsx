@@ -2,8 +2,9 @@ import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Plus } from 'lucide-react'
 import {
+  addCartItem,
   checkout,
   clearCart,
   getCart,
@@ -18,6 +19,8 @@ export default function CartPage() {
   const qc = useQueryClient()
   const userIdNum = useAuthStore((s) => s.userIdNum)
   const [shippingAddress, setShippingAddress] = useState('')
+  const [addProductId, setAddProductId] = useState<number | ''>('')
+  const [addQty, setAddQty] = useState<number>(1)
 
   const cartQuery = useQuery({
     queryKey: ['cart', userIdNum],
@@ -34,6 +37,17 @@ export default function CartPage() {
     mutationFn: updateCartItem,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cart', userIdNum] }),
     onError: () => toast.error('Update failed'),
+  })
+
+  const addMutation = useMutation({
+    mutationFn: addCartItem,
+    onSuccess: () => {
+      toast.success('Added to cart')
+      qc.invalidateQueries({ queryKey: ['cart', userIdNum] })
+      setAddProductId('')
+      setAddQty(1)
+    },
+    onError: () => toast.error('Add failed'),
   })
 
   const removeMutation = useMutation({
@@ -156,6 +170,43 @@ export default function CartPage() {
             </tfoot>
           )}
         </table>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col">
+          <label className="text-xs font-medium text-slate-500">Product</label>
+          <select
+            value={addProductId}
+            onChange={(e) => setAddProductId(e.target.value === '' ? '' : Number(e.target.value))}
+            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">— select —</option>
+            {(productsQuery.data ?? []).map((p: ProductResponse) => (
+              <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col">
+          <label className="text-xs font-medium text-slate-500">Qty</label>
+          <input
+            type="number"
+            min={1}
+            value={addQty}
+            onChange={(e) => setAddQty(Math.max(1, Number(e.target.value)))}
+            className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (addProductId === '') return toast.error('Pick a product first')
+            addMutation.mutate({ userId: userIdNum, productId: addProductId, quantity: addQty })
+          }}
+          disabled={addMutation.isPending}
+          className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          <Plus size={14} /> Add to cart
+        </button>
       </div>
 
       <form onSubmit={handleCheckout} className="max-w-xl space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">

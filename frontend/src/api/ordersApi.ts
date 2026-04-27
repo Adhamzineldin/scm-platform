@@ -52,6 +52,13 @@ export async function listOrders(params: { page?: number; size?: number } = {}) 
   return data
 }
 
+export async function listMyOrders(params: { page?: number; size?: number } = {}) {
+  const { data } = await api.get<PagedResponse<OrderResponse>>('/api/orders/my-orders', {
+    params: { page: params.page ?? 0, size: params.size ?? 20 },
+  })
+  return data
+}
+
 export async function getOrder(id: number | string) {
   const { data } = await api.get<OrderResponse>(`/api/orders/${id}`)
   return data
@@ -62,3 +69,10 @@ export async function createOrder(body: OrderRequest) {
   return data
 }
 
+export async function markOrderWarehouseComplete(orderId: number | string, workerId: string) {
+  const { data } = await api.patch<OrderResponse>(
+    `/api/orders/${orderId}/warehouse-complete`,
+    { workerId },
+  )
+  return data
+}

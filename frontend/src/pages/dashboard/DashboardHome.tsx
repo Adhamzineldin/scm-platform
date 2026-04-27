@@ -53,11 +53,10 @@ function StatCard({
 export default function DashboardHome() {
   const ordersQuery = useQuery({ queryKey: ['orders', 0, 50], queryFn: () => listOrders({ size: 50 }) })
   const productsQuery = useQuery({ queryKey: ['products'], queryFn: listProducts })
-  const shipmentsQuery = useQuery({ queryKey: ['shipments'], queryFn: listShipments })
+  const shipmentsQuery = useQuery({ queryKey: ['shipments', 0, 50], queryFn: () => listShipments({ size: 50 }) })
 
   const orders = ordersQuery.data?.content ?? []
   const products = productsQuery.data ?? []
-  const shipments = shipmentsQuery.data ?? []
   const lowStock = products.filter((p) => p.lowStock).length
 
   const statusCounts = orders.reduce<Record<string, number>>((acc, o) => {
@@ -78,7 +77,7 @@ export default function DashboardHome() {
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard label="Orders" value={ordersQuery.data?.totalElements ?? 0} icon={ShoppingBag} tone="bg-indigo-50 text-indigo-600" />
         <StatCard label="Products" value={products.length} icon={Boxes} tone="bg-sky-50 text-sky-600" />
-        <StatCard label="Shipments" value={shipments.length} icon={Truck} tone="bg-amber-50 text-amber-600" />
+        <StatCard label="Shipments" value={shipmentsQuery.data?.totalElements ?? 0} icon={Truck} tone="bg-amber-50 text-amber-600" />
         <StatCard label="Low Stock" value={lowStock} icon={AlertTriangle} tone="bg-red-50 text-red-600" />
       </div>
 

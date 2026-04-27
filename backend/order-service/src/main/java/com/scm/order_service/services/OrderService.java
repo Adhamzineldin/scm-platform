@@ -107,6 +107,12 @@ public class OrderService {
         return paginationMapper.toPagedResponse(orderPage, orderMapper::toResponse);
     }
 
+    public OrderResponse getOrderById(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found with ID: " + orderId));
+        return orderMapper.toResponse(order);
+    }
+
     @Transactional
     public OrderResponse markOrderPicked(Long orderId, String workerId) {
         Order order = orderRepository.findById(orderId)

@@ -1,9 +1,17 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { listShipments } from '../../api/shipmentsApi.ts'
 
 export default function ShipmentsListPage() {
-  const { data, isLoading } = useQuery({ queryKey: ['shipments'], queryFn: listShipments })
+  const [page, setPage] = useState(0)
+  const size = 20
+  const { data, isLoading } = useQuery({
+    queryKey: ['shipments', page, size],
+    queryFn: () => listShipments({ page, size }),
+  })
+
+  const shipments = data?.content ?? []
 
   return (
     <div className="space-y-4">
@@ -25,10 +33,10 @@ export default function ShipmentsListPage() {
           <tbody>
             {isLoading ? (
               <tr><td colSpan={7} className="p-6 text-center text-slate-500">Loading…</td></tr>
-            ) : (data ?? []).length === 0 ? (
+            ) : shipments.length === 0 ? (
               <tr><td colSpan={7} className="p-6 text-center text-slate-500">No shipments</td></tr>
             ) : (
-              data!.map((s) => (
+              shipments.map((s) => (
                 <tr key={s.id} className="border-t border-slate-100 hover:bg-slate-50">
                   <td className="px-4 py-3">{s.id}</td>
                   <td className="px-4 py-3">{s.orderId}</td>
@@ -47,7 +55,28 @@ export default function ShipmentsListPage() {
           </tbody>
         </table>
       </div>
+
+      <div className="flex items-center justify-between text-sm text-slate-600">
+        <span>
+          Page {page + 1} of {data?.totalPages ?? 1} — {data?.totalElements ?? 0} shipments
+        </span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="rounded border border-slate-200 px-3 py-1 disabled:opacity-50"
+          >
+            Prev
+          </button>
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={data?.last ?? false}
+            className="rounded border border-slate-200 px-3 py-1 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
-

@@ -27,21 +27,35 @@ export interface PickingTaskResponse {
   updatedAt: string
 }
 
-export async function listZones() {
-  const { data } = await api.get<WarehouseZoneResponse[]>('/api/warehouses/zones')
+export async function listZones(): Promise<WarehouseZoneResponse[]> {
+  const { data } = await api.get<WarehouseZoneResponse[]>('/api/warehouse/zones')
   return data
 }
 
-export async function listPickingTasks() {
-  const { data } = await api.get<PickingTaskResponse[]>('/api/warehouses/picking-tasks')
+export async function listPickingTasks(status?: TaskStatus): Promise<PickingTaskResponse[]> {
+  const { data } = await api.get<PickingTaskResponse[]>('/api/warehouse/tasks', {
+    params: status ? { status } : undefined,
+  })
   return data
 }
 
-export async function updatePickingTaskStatus(id: number, status: TaskStatus) {
+export async function listTasksForOrder(orderId: number): Promise<PickingTaskResponse[]> {
+  const { data } = await api.get<PickingTaskResponse[]>(`/api/warehouse/orders/${orderId}/tasks`)
+  return data
+}
+
+export async function startPickingTask(taskId: number, workerId: string): Promise<PickingTaskResponse> {
   const { data } = await api.patch<PickingTaskResponse>(
-    `/api/warehouses/picking-tasks/${id}/status`,
-    { status },
+    `/api/warehouse/tasks/${taskId}/start`,
+    { workerId },
   )
   return data
 }
 
+export async function completePickingTask(taskId: number, workerId: string): Promise<PickingTaskResponse> {
+  const { data } = await api.patch<PickingTaskResponse>(
+    `/api/warehouse/tasks/${taskId}/complete`,
+    { workerId },
+  )
+  return data
+}

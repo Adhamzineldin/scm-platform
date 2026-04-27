@@ -1,17 +1,50 @@
+import { type FormEvent, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { getShipment } from '../../api/shipmentsApi.ts'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import {
+  dispatchShipment,
+  getShipment,
+  type DispatchRequest,
+} from '../../api/shipmentsApi.ts'
+import { useAuthStore } from '../../store/authStore.ts'
 
 export default function ShipmentDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const qc = useQueryClient()
+  const role = useAuthStore((s) => s.role)
+  const canDispatch = role === 'ADMIN' || role === 'SHIPMENT_LEAD'
+
+  const [form, setForm] = useState<DispatchRequest>({
+    carrierName: '',
+    carrierReference: '',
+    pickupLocation: '',
+    deliveryAddress: '',
+    notes: '',
+  })
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['shipment', id],
     queryFn: () => getShipment(id!),
     enabled: !!id,
   })
 
+  const dispatchMut = useMutation({
+    mutationFn: (body: DispatchRequest) => dispatchShipment(id!, body),
+    onSuccess: () => {
+      toast.success('Dispatched')
+      qc.invalidateQueries({ queryKey: ['shipment', id] })
+    },
+    onError: () => toast.error('Dispatch failed'),
+  })
+
   if (isLoading) return <div className="text-slate-500">Loading…</div>
   if (isError || !data) return <div className="text-red-600">Failed to load shipment.</div>
+
+  const handleDispatch = (e: FormEvent) => {
+    e.preventDefault()
+    dispatchMut.mutate(form)
+  }
 
   return (
     <div className="space-y-6">
@@ -49,6 +82,43 @@ export default function ShipmentDetailPage() {
         </div>
       </div>
 
+      {canDispatch && (
+        <form
+          onSubmit={handleDispatch}
+          className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <h2 className="text-sm font-semibold text-slate-700">
+            {data.currentDispatch ? 'Re-dispatch' : 'Dispatch shipment'}
+          </h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {(['carrierName', 'carrierReference', 'pickupLocation', 'deliveryAddress'] as const).map((f) => (
+              <input
+                key={f}
+                required
+                placeholder={f}
+                value={form[f] ?? ''}
+                onChange={(e) => setForm({ ...form, [f]: e.target.value })}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            ))}
+          </div>
+          <textarea
+            placeholder="notes (optional)"
+            value={form.notes ?? ''}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            rows={2}
+          />
+          <button
+            type="submit"
+            disabled={dispatchMut.isPending}
+            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {dispatchMut.isPending ? 'Dispatching…' : 'Dispatch'}
+          </button>
+        </form>
+      )}
+
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="mb-4 text-sm font-semibold text-slate-700">Status history</h2>
         <ol className="space-y-3 border-l border-slate-200 pl-4">
@@ -72,4 +142,3 @@ export default function ShipmentDetailPage() {
     </div>
   )
 }
-

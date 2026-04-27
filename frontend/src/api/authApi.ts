@@ -28,11 +28,11 @@ export interface AuthResponse {
   role: Role
 }
 
-export interface UserResponse {
-  id: string
+export interface DashboardSummary {
   username: string
   email: string
   role: Role
+  menuItems: string[]
 }
 
 export function decodeJwt(token: string): Record<string, unknown> | null {
@@ -61,7 +61,7 @@ export async function register(body: RegisterRequest): Promise<AuthResponse> {
   return data
 }
 
-export async function getUser(userId: string): Promise<UserResponse> {
-  const { data } = await api.get<UserResponse>(`/api/users/${userId}`)
+export async function getMyDashboard(): Promise<DashboardSummary> {
+  const { data } = await api.get<DashboardSummary>('/api/dashboard/me')
   return data
 }

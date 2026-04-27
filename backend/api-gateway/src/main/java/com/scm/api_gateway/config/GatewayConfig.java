@@ -48,7 +48,9 @@ public class GatewayConfig {
     @Bean
     public RouterFunction<ServerResponse> warehouseRoutes() {
         return route("warehouse-service")
-                .route(path("/api/warehouses/**"), http())
+                // Singular `/api/warehouse/**` to match the warehouse-service controllers
+                // and the role rule in auth-service SecurityConfig.
+                .route(path("/api/warehouse/**"), http())
                 .filter(lb("warehouse-service"))
                 .build();
     }

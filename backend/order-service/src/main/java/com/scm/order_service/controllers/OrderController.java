@@ -44,6 +44,12 @@ public class OrderController {
         return orderService.getOrdersForUser(userId, page, size);
     }
 
+    @GetMapping("/{orderId}")
+    @ResponseStatus(HttpStatus.OK)
+    public OrderResponse getOrder(@PathVariable Long orderId) {
+        return orderService.getOrderById(orderId);
+    }
+
     @PatchMapping("/{orderId}/warehouse-complete")
     @ResponseStatus(HttpStatus.OK)
     public OrderResponse markWarehouseComplete(
