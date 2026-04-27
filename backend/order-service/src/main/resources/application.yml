@@ -5,13 +5,13 @@ spring:
   application:
     name: order-service
   datasource:
-    url: jdbc:postgresql://localhost:5434/scm_order_db
-    username: admin
-    password: password
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5434/scm_order_db}
+    username: ${SPRING_DATASOURCE_USERNAME:admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: ${SPRING_JPA_SHOW_SQL:true}
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
@@ -27,6 +27,16 @@ eureka:
   client:
     enabled: ${EUREKA_CLIENT_ENABLED:true}
     serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: http://${EUREKA_HOST:localhost}:${EUREKA_PORT:8761}/eureka/
   instance:
     prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+

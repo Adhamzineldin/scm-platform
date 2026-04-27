@@ -4,7 +4,12 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>dashboard</title>
+    <title>SCM Dashboard</title>
+    <!-- Runtime config — placeholder is rewritten by docker-entrypoint.sh on container start.
+         Locally (vite dev) the placeholder stays and code falls back to VITE_API_BASE_URL. -->
+    <script>
+      window.__APP_CONFIG__ = { API_BASE_URL: "__API_BASE_URL__" };
+    </script>
   </head>
   <body>
     <div id="root"></div>

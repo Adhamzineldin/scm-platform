@@ -19,7 +19,10 @@ export class EurekaService implements OnModuleDestroy {
     
     this.port = parseInt(this.configService.get<string>('PORT', '3050'), 10);
 
-    this.eurekaHost = this.configService.get<string>('EUREKA_SERVER', 'http://localhost:8761');
+    this.eurekaHost = this.configService.get<string>(
+      'EUREKA_SERVER',
+      `http://${this.configService.get<string>('EUREKA_HOST', 'localhost')}:${this.configService.get<string>('EUREKA_PORT', '8761')}`,
+    );
 
     this.hostname = os.hostname();
     this.instanceId = `${this.hostname}:${this.appName}:${this.port}`;
