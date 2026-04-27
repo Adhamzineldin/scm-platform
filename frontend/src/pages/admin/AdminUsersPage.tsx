@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { listUsers, updateUserRole, type AdminUser } from '../../api/adminApi.ts'
 import type { Role } from '../../api/authApi.ts'
+import { extractErrorMessage } from '../../api/axiosInstance.ts'
 
 const ROLES: Role[] = [
   'STAFF',
@@ -26,7 +27,7 @@ export default function AdminUsersPage() {
       toast.success('Role updated')
       qc.invalidateQueries({ queryKey: ['admin-users'] })
     },
-    onError: () => toast.error('Update failed'),
+    onError: (err) => toast.error(extractErrorMessage(err, 'Failed to update role')),
   })
 
   const filtered = useMemo<AdminUser[]>(() => {

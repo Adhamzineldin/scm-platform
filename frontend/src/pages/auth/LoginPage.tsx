@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { login, type LoginRequest } from '../../api/authApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
+import { extractErrorMessage } from '../../api/axiosInstance.ts'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -17,7 +18,7 @@ export default function LoginPage() {
       toast.success('Welcome back!')
       navigate('/dashboard', { replace: true })
     },
-    onError: () => toast.error('Invalid credentials'),
+    onError: (err) => toast.error(extractErrorMessage(err, 'Invalid credentials')),
   })
 
   const handleSubmit = (e: FormEvent) => {

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { Trash2, Plus } from 'lucide-react'
 import { createOrder, type OrderItemRequest } from '../../api/ordersApi.ts'
 import { listProducts } from '../../api/inventoryApi.ts'
+import { extractErrorMessage } from '../../api/axiosInstance.ts'
 
 export default function CreateOrderPage() {
   const navigate = useNavigate()
@@ -20,7 +21,7 @@ export default function CreateOrderPage() {
       toast.success(`Order #${order.id} created`)
       navigate(`/orders/${order.id}`)
     },
-    onError: () => toast.error('Failed to create order'),
+    onError: (err) => toast.error(extractErrorMessage(err, 'Failed to create order')),
   })
 
   const updateItem = (idx: number, patch: Partial<OrderItemRequest>) => {

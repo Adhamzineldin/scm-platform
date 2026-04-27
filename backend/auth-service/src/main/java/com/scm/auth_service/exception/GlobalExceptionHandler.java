@@ -1,10 +1,11 @@
-package com.scm.shipment_service.exception;
+package com.scm.auth_service.exception;
 
-import com.scm.shipment_service.dto.ErrorResponse;
+import com.scm.auth_service.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -17,36 +18,27 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(NotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNotFound(NotFoundException ex, HttpServletRequest req) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(build(HttpStatus.NOT_FOUND, ex.getMessage(), req));
-    }
-
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatus(ResponseStatusException ex, HttpServletRequest req) {
         HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
         if (status == null) status = HttpStatus.INTERNAL_SERVER_ERROR;
-        return ResponseEntity.status(status)
-                .body(build(status, ex.getReason() != null ? ex.getReason() : ex.getMessage(), req));
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleBadRequest(IllegalArgumentException ex, HttpServletRequest req) {
-        return ResponseEntity.badRequest().body(build(HttpStatus.BAD_REQUEST, ex.getMessage(), req));
+        if (status.is5xxServerError()) {
+            log.error("auth-service error on {}: {}", req.getRequestURI(), ex.getMessage());
+        }
+        return ResponseEntity.status(status).body(build(status, ex.getReason() != null ? ex.getReason() : ex.getMessage(), req));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
         String msg = ex.getBindingResult().getFieldErrors().stream()
-                .map(f -> f.getField() + ": " + f.getDefaultMessage())
+                .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining("; "));
         return ResponseEntity.badRequest().body(build(HttpStatus.BAD_REQUEST, msg, req));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex, HttpServletRequest req) {
-        log.error("Unexpected shipment-service error on {}", req.getRequestURI(), ex);
+        log.error("Unexpected auth-service error on {}", req.getRequestURI(), ex);
         return ResponseEntity.internalServerError()
                 .body(build(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", req));
     }

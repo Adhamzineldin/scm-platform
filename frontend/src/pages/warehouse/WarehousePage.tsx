@@ -9,6 +9,7 @@ import {
   type TaskStatus,
 } from '../../api/warehouseApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
+import { extractErrorMessage } from '../../api/axiosInstance.ts'
 
 const STATUS_BADGE: Record<TaskStatus, string> = {
   PENDING: 'bg-slate-100 text-slate-700',
@@ -36,7 +37,7 @@ export default function WarehousePage() {
       toast.success('Task started')
       qc.invalidateQueries({ queryKey: ['pickingTasks'] })
     },
-    onError: () => toast.error('Failed to start task'),
+    onError: (err) => toast.error(extractErrorMessage(err, 'Failed to start task')),
   })
 
   const completeMutation = useMutation({
@@ -45,7 +46,7 @@ export default function WarehousePage() {
       toast.success('Task completed')
       qc.invalidateQueries({ queryKey: ['pickingTasks'] })
     },
-    onError: () => toast.error('Failed to complete task'),
+    onError: (err) => toast.error(extractErrorMessage(err, 'Failed to complete task')),
   })
 
   const busy = startMutation.isPending || completeMutation.isPending

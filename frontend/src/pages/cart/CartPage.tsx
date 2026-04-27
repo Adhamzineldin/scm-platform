@@ -13,6 +13,7 @@ import {
 } from '../../api/cartApi.ts'
 import { listProducts, type ProductResponse } from '../../api/inventoryApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
+import { extractErrorMessage } from '../../api/axiosInstance.ts'
 
 export default function CartPage() {
   const navigate = useNavigate()
@@ -36,7 +37,7 @@ export default function CartPage() {
   const updateMutation = useMutation({
     mutationFn: updateCartItem,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cart', userIdNum] }),
-    onError: () => toast.error('Update failed'),
+    onError: (err) => toast.error(extractErrorMessage(err, 'Failed to update item')),
   })
 
   const addMutation = useMutation({
@@ -47,13 +48,13 @@ export default function CartPage() {
       setAddProductId('')
       setAddQty(1)
     },
-    onError: () => toast.error('Add failed'),
+    onError: (err) => toast.error(extractErrorMessage(err, 'Failed to add item')),
   })
 
   const removeMutation = useMutation({
     mutationFn: ({ productId }: { productId: number }) => removeCartItem(userIdNum!, productId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cart', userIdNum] }),
-    onError: () => toast.error('Remove failed'),
+    onError: (err) => toast.error(extractErrorMessage(err, 'Failed to remove item')),
   })
 
   const clearMutation = useMutation({
@@ -72,7 +73,7 @@ export default function CartPage() {
       qc.invalidateQueries({ queryKey: ['cart', userIdNum] })
       navigate(`/orders/${order.id}`)
     },
-    onError: () => toast.error('Checkout failed'),
+    onError: (err) => toast.error(extractErrorMessage(err, 'Checkout failed')),
   })
 
   if (userIdNum === null) {
