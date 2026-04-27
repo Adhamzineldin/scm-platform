@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls *)",
+      "Bash(mkdir -p \"G:/University/Third Year Term 2/Distributed Systems & Cloud Computing/scm-platform/backend/document-gen-service/src/documents\")",
+      "Bash(mkdir -p \"G:/University/Third Year Term 2/Distributed Systems & Cloud Computing/scm-platform/backend/document-gen-service/src/eureka\")",
+      "Bash(mkdir -p \"G:/University/Third Year Term 2/Distributed Systems & Cloud Computing/scm-platform/backend/document-gen-service/src/health\")",
+      "Bash(mvn dependency:tree -Dscope=test)",
+      "Bash(mvn dependency:tree)",
+      "Bash(where mvn *)",
+      "Bash(./mvnw.cmd dependency:tree)",
+      "Bash(java -jar .mvn/wrapper/maven-wrapper.jar dependency:tree)",
+      "Bash(jar tf *)",
+      "Bash(pnpm add *)",
+      "Bash(pnpm build *)",
+      "Bash(pnpm test *)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs"
+    ]
+  }
+}
