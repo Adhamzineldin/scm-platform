@@ -7,6 +7,7 @@ import com.scm.shipment_service.entity.Shipment;
 import com.scm.shipment_service.service.ShipmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.annotation.BackOff;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -14,7 +15,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.retrytopic.DltStrategy;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -40,7 +40,7 @@ public class ShipmentEventListener {
 
     @RetryableTopic(
             attempts = "4",
-            backoff = @Backoff(delay = 2000, multiplier = 2.0, maxDelay = 10000),
+            backOff = @BackOff(delay = 2000, multiplier = 2.0, maxDelay = 10000),
             dltStrategy = DltStrategy.FAIL_ON_ERROR
     )
     @KafkaListener(topics = INBOUND_TOPIC, groupId = "shipment-service-group")
