@@ -1,16 +1,19 @@
 package com.scm.shipment_service.dto;
+
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+@Data
 public class ShipmentResponse {
 
     private Long id;
+    private Long orderId;
+    private String userId;
     private String trackingNumber;
+    private String carrier;
+    private String shippingAddress;
     private String status;
-
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-
-    public String getTrackingNumber() { return trackingNumber; }
-    public void setTrackingNumber(String trackingNumber) { this.trackingNumber = trackingNumber; }
-
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

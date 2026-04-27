@@ -15,13 +15,16 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/shipments")
+@RequestMapping("/api/shipments")
 public class ShipmentController {
 
     private final ShipmentService service;
+    private final com.scm.shipment_service.repository.ShipmentRepository repo;
 
-    public ShipmentController(ShipmentService service) {
+    public ShipmentController(ShipmentService service,
+                              com.scm.shipment_service.repository.ShipmentRepository repo) {
         this.service = service;
+        this.repo = repo;
     }
 
     /**
@@ -30,6 +33,18 @@ public class ShipmentController {
     @PostMapping
     public ShipmentResponse create(@RequestBody ShipmentRequest req) {
         return ShipmentMapper.toResponse(service.create(req.getOrderId()));
+    }
+
+    /**
+     * List all shipments (paginated). Used by the dashboard.
+     */
+    @GetMapping
+    public org.springframework.data.domain.Page<ShipmentResponse> list(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return repo.findAll(org.springframework.data.domain.PageRequest.of(
+                page, size, org.springframework.data.domain.Sort.by("id").descending()))
+                .map(ShipmentMapper::toResponse);
     }
 
     /**

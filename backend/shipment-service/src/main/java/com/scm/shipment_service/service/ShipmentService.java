@@ -44,6 +44,51 @@ public class ShipmentService {
         return saved;
     }
 
+    /**
+     * Create a shipment from a Kafka {@code order-ready-for-dispatch-topic} event,
+     * persisting the userId + shippingAddress so we can notify the customer later.
+     */
+    @Transactional
+    public Shipment createForOrder(Long orderId, String userId, String shippingAddress) {
+        Shipment s = new Shipment();
+        s.setOrderId(orderId);
+        s.setUserId(userId);
+        s.setShippingAddress(shippingAddress);
+        s.setStatus(ShipmentStatus.PENDING);
+        Shipment saved = repo.save(s);
+
+        recordHistory(saved, null, ShipmentStatus.PENDING, "SYSTEM-KAFKA",
+                "Shipment auto-created from order-ready-for-dispatch event");
+        return saved;
+    }
+
+    /**
+     * Auto-dispatch a freshly created shipment via the carrier service. Used by the
+     * Kafka listener path so we don't require an explicit DispatchRequest from a UI.
+     */
+    @Transactional
+    public Shipment autoDispatch(Shipment s) {
+        var res = carrier.send(s);
+        s.setTrackingNumber(res.get("trackingNumber"));
+        s.setCarrier(res.get("carrier"));
+        s.setStatus(ShipmentStatus.SHIPPED);
+        Shipment saved = repo.save(s);
+
+        DispatchRecord dispatch = new DispatchRecord();
+        dispatch.setShipment(saved);
+        dispatch.setDispatchedAt(LocalDateTime.now());
+        dispatch.setCarrierName(res.get("carrier"));
+        dispatch.setCarrierReference(res.get("trackingNumber"));
+        dispatch.setPickupLocation("WAREHOUSE");
+        dispatch.setDeliveryAddress(saved.getShippingAddress());
+        dispatch.setNotes("Auto-dispatched from order-ready-for-dispatch event");
+        dispatchRepo.save(dispatch);
+
+        recordHistory(saved, ShipmentStatus.PENDING, ShipmentStatus.SHIPPED, "SYSTEM-KAFKA",
+                "Auto-dispatched to carrier: " + res.get("carrier"));
+        return saved;
+    }
+
     @Transactional
     public Shipment dispatch(Long id, DispatchRequest request) {
         Shipment s = repo.findById(id)

@@ -2,13 +2,40 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
+  - job_name: api-gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [api-gateway:7080]
+  - job_name: discovery-server
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [discovery-server:8761]
+  - job_name: auth-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [auth-service:8081]
+  - job_name: cart-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [cart-service:8083]
+  - job_name: order-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [order-service:2501]
   - job_name: inventory-service
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets:
-          - inventory-service:2502
+      - targets: [inventory-service:2502]
+  - job_name: shipment-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [shipment-service:2503]
   - job_name: warehouse-service
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets:
-          - warehouse-service:2504
+      - targets: [warehouse-service:2504]
+  - job_name: notification-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [notification-service:2505]
+

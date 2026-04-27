@@ -31,4 +31,16 @@ public record InAppNotification(
                 Instant.now()
         );
     }
+
+    public static InAppNotification shipmentDispatched(Long orderId, String userId,
+                                                       String trackingNumber, String carrier) {
+        return new InAppNotification(
+                "SHIPMENT_DISPATCHED",
+                orderId,
+                userId,
+                "Order #" + orderId + " has shipped",
+                "Carrier " + carrier + " — tracking #" + trackingNumber,
+                Instant.now()
+        );
+    }
 }

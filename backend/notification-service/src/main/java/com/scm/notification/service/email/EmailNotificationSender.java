@@ -1,6 +1,7 @@
 package com.scm.notification.service.email;
 
 import com.scm.notification.dto.OrderConfirmationContext;
+import com.scm.notification.dto.ShipmentDispatchedContext;
 import com.scm.notification.dto.StatusUpdateContext;
 import com.scm.notification.service.NotificationSender;
 import jakarta.mail.MessagingException;
@@ -85,6 +86,34 @@ public class EmailNotificationSender implements NotificationSender {
 
             mailSender.send(message);
             log.info("Status update email delivered for Order #{}", orderId);
+        } catch (MessagingException | MailException e) {
+            throw new EmailDeliveryException("SMTP delivery failed for Order #" + orderId, e);
+        }
+    }
+
+    @Override
+    @Retryable(
+            retryFor = EmailDeliveryException.class,
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 1000, multiplier = 2.0, maxDelay = 5000)
+    )
+    public void sendShipmentDispatched(ShipmentDispatchedContext context) {
+        Long orderId = context.event().orderId();
+        String toAddress = context.user().email();
+        log.info("Sending shipment dispatched email for Order #{} to {} (carrier={}, tracking={})",
+                orderId, toAddress, context.event().carrier(), context.event().trackingNumber());
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+
+            helper.setFrom(fromAddress);
+            helper.setTo(toAddress);
+            helper.setSubject("Order #" + orderId + " has shipped — " + context.event().carrier());
+            helper.setText(contentBuilder.buildShipmentDispatched(context), true);
+
+            mailSender.send(message);
+            log.info("Shipment dispatched email delivered for Order #{}", orderId);
         } catch (MessagingException | MailException e) {
             throw new EmailDeliveryException("SMTP delivery failed for Order #" + orderId, e);
         }

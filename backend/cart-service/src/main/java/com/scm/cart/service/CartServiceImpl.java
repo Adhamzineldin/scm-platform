@@ -1,5 +1,12 @@
 package com.scm.cart.service;
 
+import com.scm.cart.client.OrderClient;
+import com.scm.cart.client.ProductClient;
+import com.scm.cart.dto.external.OrderRequest;
+import com.scm.cart.dto.external.OrderRequest.OrderItemRequest;
+import com.scm.cart.dto.external.OrderResponse;
+import com.scm.cart.dto.external.ProductResponse;
+import com.scm.cart.dto.request.CheckoutRequest;
 import com.scm.cart.dto.response.CartResponse;
 import com.scm.cart.entity.Cart;
 import com.scm.cart.entity.CartItem;
@@ -14,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -22,11 +30,19 @@ public class CartServiceImpl implements CartService {
 
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
+    private final ProductClient productClient;
+    private final OrderClient orderClient;
 
     @Override
     @Transactional
     public void addItemToCart(Long userId, Long productId, int quantity) {
         log.info("Adding product {} (qty: {}) to cart for user {}", productId, quantity, userId);
+
+        // Sync validation: confirm product exists in inventory before mutating cart
+        ProductResponse product = productClient.getProductById(productId);
+        if (product == null) {
+            throw new IllegalArgumentException("Product " + productId + " not found in inventory");
+        }
 
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseGet(() -> {
@@ -96,5 +112,52 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new CartNotFoundException(userId));
 
         cartItemRepository.deleteByCart(cart);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse checkout(Long userId, CheckoutRequest request) {
+        log.info("Checking out cart for user {}", userId);
+
+        Cart cart = cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new CartNotFoundException(userId));
+
+        List<CartItem> items = cartItemRepository.findByCart(cart);
+        if (items.isEmpty()) {
+            throw new IllegalStateException("Cannot checkout an empty cart for user " + userId);
+        }
+
+        // Enrich each cart item with sku + unitPrice from inventory-service.
+        List<OrderItemRequest> orderItems = items.stream()
+                .map(item -> {
+                    ProductResponse product = productClient.getProductById(item.getProductId());
+                    if (product == null) {
+                        throw new IllegalStateException(
+                                "Product " + item.getProductId() + " no longer exists in inventory");
+                    }
+                    return OrderItemRequest.builder()
+                            .sku(product.getSku())
+                            .quantity(item.getQuantity())
+                            .unitPrice(product.getUnitPrice())
+                            .build();
+                })
+                .toList();
+
+        String idempotencyKey = (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank())
+                ? request.getIdempotencyKey()
+                : UUID.randomUUID().toString();
+
+        OrderRequest orderRequest = OrderRequest.builder()
+                .idempotencyKey(idempotencyKey)
+                .shippingAddress(request.getShippingAddress())
+                .items(orderItems)
+                .build();
+
+        OrderResponse order = orderClient.createOrder(orderRequest, String.valueOf(userId));
+        log.info("Order #{} created for user {} (idempotencyKey={})", order.getId(), userId, idempotencyKey);
+
+        // Clear the cart only after the order has been accepted by order-service
+        cartItemRepository.deleteByCart(cart);
+        return order;
     }
 }

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Your order has shipped</title>
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .header { background-color: #1a1a2e; color: white; padding: 15px; text-align: center; border-radius: 8px 8px 0 0; }
+        .tracking-box { background-color: #f4f4f4; padding: 15px; border-left: 4px solid #28a745; margin-top: 15px; }
+        .label { color: #888; font-size: 12px; text-transform: uppercase; }
+        .value { font-size: 16px; font-weight: bold; color: #1a1a2e; }
+        .tracking-number { font-size: 20px; font-weight: bold; color: #28a745; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2>📦 Your order is on the way!</h2>
+    </div>
+    <div class="content">
+        <p>Hello <span th:text="${customerName}">Customer</span>,</p>
+        <p>Great news — order <strong>#<span th:text="${orderId}">123</span></strong> has been dispatched
+            and is now in transit.</p>
+
+        <div class="tracking-box">
+            <div>
+                <span class="label">Carrier</span><br/>
+                <span class="value" th:text="${carrier}">DHL Express</span>
+            </div>
+            <div style="margin-top: 12px;">
+                <span class="label">Tracking number</span><br/>
+                <span class="tracking-number" th:text="${trackingNumber}">TRK-000000</span>
+            </div>
+            <div style="margin-top: 12px;">
+                <span class="label">Shipping to</span><br/>
+                <span th:text="${shippingAddress}">123 Example St.</span>
+            </div>
+            <div style="margin-top: 12px;">
+                <span class="label">Dispatched at</span><br/>
+                <span th:text="${dispatchedAt}">2026-04-27T10:00:00Z</span>
+            </div>
+        </div>
+
+        <p style="margin-top: 20px;">You can use the tracking number above with your carrier to
+            follow the parcel until delivery.</p>
+        <p>Thanks for ordering with us!</p>
+    </div>
+</div>
+</body>
+</html>
+

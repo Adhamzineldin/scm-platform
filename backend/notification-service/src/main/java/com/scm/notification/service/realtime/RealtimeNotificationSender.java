@@ -1,6 +1,7 @@
 package com.scm.notification.service.realtime;
 
 import com.scm.notification.dto.OrderConfirmationContext;
+import com.scm.notification.dto.ShipmentDispatchedContext;
 import com.scm.notification.dto.StatusUpdateContext;
 import com.scm.notification.service.NotificationSender;
 import com.scm.notification.stream.InAppNotification;
@@ -42,6 +43,20 @@ public class RealtimeNotificationSender implements NotificationSender {
         );
         log.info("Pushing realtime ORDER_STATUS_UPDATED for Order #{} to userId={}",
                 context.event().orderId(), userId);
+        registry.publish(userId, payload);
+    }
+
+    @Override
+    public void sendShipmentDispatched(ShipmentDispatchedContext context) {
+        String userId = context.user().id();
+        InAppNotification payload = InAppNotification.shipmentDispatched(
+                context.event().orderId(),
+                userId,
+                context.event().trackingNumber(),
+                context.event().carrier()
+        );
+        log.info("Pushing realtime SHIPMENT_DISPATCHED for Order #{} to userId={} (tracking={})",
+                context.event().orderId(), userId, context.event().trackingNumber());
         registry.publish(userId, payload);
     }
 }

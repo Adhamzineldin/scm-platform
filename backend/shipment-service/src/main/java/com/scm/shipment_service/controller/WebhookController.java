@@ -1,11 +1,11 @@
 package com.scm.shipment_service.controller;
 
-import com.scm.shipmentservice.dto.WebhookRequest;
-import com.scm.shipmentservice.service.ShipmentService;
+import com.scm.shipment_service.dto.WebhookRequest;
+import com.scm.shipment_service.service.ShipmentService;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/webhooks")
+@RequestMapping("/api/shipments/webhooks")
 public class WebhookController {
 
     private final ShipmentService service;

@@ -7,6 +7,8 @@ import com.scm.notification.dto.NotificationContext;
 import com.scm.notification.dto.OrderConfirmationContext;
 import com.scm.notification.dto.OrderCreatedEvent;
 import com.scm.notification.dto.OrderStatusChangedEvent;
+import com.scm.notification.dto.ShipmentDispatchedContext;
+import com.scm.notification.dto.ShipmentDispatchedEvent;
 import com.scm.notification.dto.StatusUpdateContext;
 import com.scm.notification.dto.UserDto;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +56,20 @@ public class NotificationDispatcher {
 
         StatusUpdateContext context = new StatusUpdateContext(event, user);
         fanOut(context, sender -> sender.sendStatusUpdate(context));
+    }
+
+    public void dispatchShipmentConfirmation(ShipmentDispatchedEvent event) {
+//        UserDto user = userClient.getUserById(event.userId());
+        //TODO: use client when it's ready
+        UserDto user = new UserDto(
+                event.userId() != null ? event.userId() : "1",
+                "mohalya3@gmail.com",
+                "Adham Zineldin",
+                "01157000509"
+        );
+
+        ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, user);
+        fanOut(context, sender -> sender.sendShipmentDispatched(context));
     }
 
     private byte[] generateReceipt(OrderCreatedEvent event) {

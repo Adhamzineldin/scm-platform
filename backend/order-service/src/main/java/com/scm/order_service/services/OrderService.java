@@ -116,7 +116,7 @@ public class OrderService {
         transitionStatus(order, OrderStatus.PICKED);
 
         orderEventProducer.sendOrderReadyForDispatchEvent(
-                new OrderReadyForDispatchEvent(order.getId(), order.getShippingAddress())
+                new OrderReadyForDispatchEvent(order.getId(), order.getUserId(), order.getShippingAddress())
         );
 
         return orderMapper.toResponse(order);

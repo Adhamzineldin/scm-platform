@@ -1,7 +1,7 @@
 package com.scm.notification.dto;
 
 public sealed interface NotificationContext
-        permits OrderConfirmationContext, StatusUpdateContext {
+        permits OrderConfirmationContext, StatusUpdateContext, ShipmentDispatchedContext {
 
     Long orderId();
 

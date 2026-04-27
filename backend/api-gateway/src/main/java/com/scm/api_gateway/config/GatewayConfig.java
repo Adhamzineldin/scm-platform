@@ -68,4 +68,12 @@ public class GatewayConfig {
                 .filter(lb("notification-service"))
                 .build();
     }
+
+    @Bean
+    public RouterFunction<ServerResponse> cartRoutes() {
+        return route("cart-service")
+                .route(path("/api/carts/**"), http())
+                .filter(lb("cart-service"))
+                .build();
+    }
 }

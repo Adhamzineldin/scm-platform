@@ -1,6 +1,8 @@
 package com.scm.cart.controller;
 
+import com.scm.cart.dto.external.OrderResponse;
 import com.scm.cart.dto.request.AddItemToCartRequest;
+import com.scm.cart.dto.request.CheckoutRequest;
 import com.scm.cart.dto.request.UpdateCartItemRequest;
 import com.scm.cart.dto.response.ApiResponse;
 import com.scm.cart.dto.response.CartResponse;
@@ -49,5 +51,14 @@ public class CartController {
     public ResponseEntity<ApiResponse<Void>> clearCart(@PathVariable Long userId) {
         cartService.clearCartByUserId(userId);
         return ResponseEntity.ok(ApiResponse.success("Cart cleared successfully", HttpStatus.OK.value()));
+    }
+
+    @PostMapping("/{userId}/checkout")
+    public ResponseEntity<ApiResponse<OrderResponse>> checkout(@PathVariable Long userId,
+                                                               @Valid @RequestBody CheckoutRequest request) {
+        OrderResponse order = cartService.checkout(userId, request);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Checkout successful — order created", order, HttpStatus.CREATED.value()));
     }
 }

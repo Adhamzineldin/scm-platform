@@ -1,6 +1,7 @@
 package com.scm.notification.service.email;
 
 import com.scm.notification.dto.OrderConfirmationContext;
+import com.scm.notification.dto.ShipmentDispatchedContext;
 import com.scm.notification.dto.StatusUpdateContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ public class EmailContentBuilder {
 
     private static final String ORDER_CONFIRMATION_TEMPLATE = "order-confirmation";
     private static final String STATUS_UPDATE_TEMPLATE = "order-status-update";
+    private static final String SHIPMENT_DISPATCHED_TEMPLATE = "shipment-dispatched";
 
     private final TemplateEngine templateEngine;
 
@@ -33,5 +35,16 @@ public class EmailContentBuilder {
         tplContext.setVariable("newStatus", ctx.event().newStatus());
         tplContext.setVariable("changedAt", ctx.event().changedAt());
         return templateEngine.process(STATUS_UPDATE_TEMPLATE, tplContext);
+    }
+
+    public String buildShipmentDispatched(ShipmentDispatchedContext ctx) {
+        Context tplContext = new Context();
+        tplContext.setVariable("customerName", ctx.user().fullName());
+        tplContext.setVariable("orderId", ctx.event().orderId());
+        tplContext.setVariable("carrier", ctx.event().carrier());
+        tplContext.setVariable("trackingNumber", ctx.event().trackingNumber());
+        tplContext.setVariable("shippingAddress", ctx.event().shippingAddress());
+        tplContext.setVariable("dispatchedAt", ctx.event().dispatchedAt());
+        return templateEngine.process(SHIPMENT_DISPATCHED_TEMPLATE, tplContext);
     }
 }
