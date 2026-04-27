@@ -5,8 +5,10 @@ WORKDIR /app
 # Pin pnpm to a version compatible with lockfileVersion 9 (avoid surprises from `latest`)
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
-# Install all deps (including devDependencies) using the lockfile
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* ./
+# Install all deps (including devDependencies) using the lockfile.
+# pnpm-workspace.yaml is included so pnpm honors the `allowBuilds` config and the
+# `packages: ['.']` entry (required by pnpm 9.15+ when a workspace file is present).
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # Copy source and build (node_modules is excluded via .dockerignore)
