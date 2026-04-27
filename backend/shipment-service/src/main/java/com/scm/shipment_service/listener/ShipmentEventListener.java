@@ -11,10 +11,8 @@ import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.retrytopic.DltStrategy;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -38,11 +36,7 @@ public class ShipmentEventListener {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
-    @RetryableTopic(
-            attempts = "4",
-            backoff = @Backoff(delay = 2000, multiplier = 2.0, maxDelay = 10000),
-            dltStrategy = DltStrategy.FAIL_ON_ERROR
-    )
+    @RetryableTopic(attempts = "4")
     @KafkaListener(topics = INBOUND_TOPIC, groupId = "shipment-service-group")
     public void handleOrderReadyForDispatch(Map<String, Object> eventMap) {
         OrderReadyForDispatchEvent event = objectMapper.convertValue(eventMap, OrderReadyForDispatchEvent.class);
