@@ -1,0 +1,27 @@
+# Force LF line endings for shell scripts and other Unix-only files,
+# regardless of contributors' git `core.autocrlf` settings on Windows.
+# Without this, scripts get CRLF on Windows checkout and fail in Linux
+# containers with errors like "/bin/sh^M: not found" or "exec format error".
+
+*.sh           text eol=lf
+*.bash         text eol=lf
+Dockerfile     text eol=lf
+*.dockerfile   text eol=lf
+docker-entrypoint.* text eol=lf
+mvnw           text eol=lf
+gradlew        text eol=lf
+*.yml          text eol=lf
+*.yaml         text eol=lf
+
+# Windows-only files
+*.bat          text eol=crlf
+*.cmd          text eol=crlf
+*.ps1          text eol=crlf
+
+# Binary
+*.jar          binary
+*.png          binary
+*.jpg          binary
+*.ico          binary
+*.svg          text eol=lf
+

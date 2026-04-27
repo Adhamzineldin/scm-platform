@@ -1,4 +1,4 @@
-@import "../dashboard/node_modules/tailwindcss/dist/lib.d.mts";
+@import "tailwindcss";
 
 :root {
   color-scheme: light;
