@@ -16,7 +16,10 @@ public class GatewayConfig {
     @Bean
     public RouterFunction<ServerResponse> authRoutes() {
         return route("auth-service")
-                .route(path("/api/auth/**").or(path("/api/users/**")), http())
+                .route(path("/api/auth/**")
+                        .or(path("/api/users/**"))
+                        .or(path("/api/admin/**"))
+                        .or(path("/api/dashboard/**")), http())
                 .filter(lb("auth-service"))
                 .build();
     }

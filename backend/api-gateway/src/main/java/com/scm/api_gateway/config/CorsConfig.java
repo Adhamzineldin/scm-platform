@@ -13,16 +13,19 @@ import java.util.List;
 @ConfigurationProperties(prefix = "gateway.cors")
 public class CorsConfig {
 
-    private List<String> allowedOrigins = List.of(
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "http://localhost:4200"
-    );
+    /**
+     * By default we accept any origin (works with credentials thanks to
+     * {@code setAllowedOriginPatterns}). In production set
+     * {@code GATEWAY_CORS_ALLOWED_ORIGINS} (comma-separated) to lock this down,
+     * e.g. {@code https://app.example.com}.
+     */
+    private List<String> allowedOrigins = List.of("*");
 
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowCredentials(true);
+        // Use patterns (not setAllowedOrigins) so "*" is legal alongside credentials.
         cors.setAllowedOriginPatterns(allowedOrigins);
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cors.setAllowedHeaders(List.of("*"));

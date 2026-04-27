@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import toast from 'react-hot-toast'
 import { register, type RegisterRequest } from '../../api/authApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
@@ -21,7 +22,20 @@ export default function RegisterPage() {
       toast.success('Account created — your role is STAFF until an admin promotes you')
       navigate('/dashboard', { replace: true })
     },
-    onError: () => toast.error('Registration failed'),
+    onError: (err) => {
+      let msg = 'Registration failed'
+      if (isAxiosError(err)) {
+        if (!err.response) {
+          msg = 'Cannot reach server (network/CORS error)'
+        } else if (err.response.status === 409) {
+          msg = 'Email already registered'
+        } else if (typeof err.response.data === 'object' && err.response.data) {
+          const d = err.response.data as { message?: string; error?: string }
+          msg = d.message || d.error || msg
+        }
+      }
+      toast.error(msg)
+    },
   })
 
   const handleSubmit = (e: FormEvent) => {
