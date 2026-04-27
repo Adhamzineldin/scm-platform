@@ -1,0 +1,6 @@
+dashboard/node_modules
+dist
+.git
+.vscode
+*.log
+
