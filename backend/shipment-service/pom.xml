@@ -78,6 +78,18 @@
 			<groupId>org.springframework.kafka</groupId>
 			<artifactId>spring-kafka-test</artifactId>
 			<scope>test</scope>
+			<exclusions>
+				<!--
+					rocksdbjni is a 70 MB native binary pulled in transitively for Kafka Streams
+					test support. We don't use Kafka Streams, and the large download is fragile on
+					slow connections (frequent "Premature end of Content-Length" errors during
+					`mvn dependency:go-offline` in Docker builds).
+				-->
+				<exclusion>
+					<groupId>org.rocksdb</groupId>
+					<artifactId>rocksdbjni</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 	</dependencies>
 

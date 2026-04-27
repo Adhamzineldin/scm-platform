@@ -96,6 +96,13 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka-test</artifactId>
             <scope>test</scope>
+            <exclusions>
+                <!-- Skip 70 MB rocksdbjni native binary (Kafka Streams test util we don't use). -->
+                <exclusion>
+                    <groupId>org.rocksdb</groupId>
+                    <artifactId>rocksdbjni</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
     </dependencies>
 
