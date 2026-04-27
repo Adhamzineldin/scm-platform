@@ -43,32 +43,37 @@ public class AdminSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        boolean adminExists = userRepository.findAll().stream()
-                .anyMatch(u -> u.getRole() == Role.ADMIN);
+        // Idempotent on the configured email: if a user with that email already
+        // exists, make sure they are an ADMIN; otherwise create the bootstrap
+        // ADMIN. Other ADMIN accounts under different emails are left alone.
+        userRepository.findByEmail(adminEmail).ifPresentOrElse(
+                existing -> {
+                    if (existing.getRole() != Role.ADMIN) {
+                        log.warn("[AdminSeeder] User {} exists with role {} — promoting to ADMIN.",
+                                adminEmail, existing.getRole());
+                        existing.setRole(Role.ADMIN);
+                        userRepository.save(existing);
+                    } else {
+                        log.info("[AdminSeeder] Bootstrap ADMIN {} already exists — nothing to do.",
+                                adminEmail);
+                    }
+                },
+                () -> {
+                    User admin = User.builder()
+                            .username(adminUsername)
+                            .email(adminEmail)
+                            .password(passwordEncoder.encode(adminPassword))
+                            .role(Role.ADMIN)
+                            .build();
+                    userRepository.save(admin);
 
-        if (adminExists) {
-            log.info("[AdminSeeder] An ADMIN user already exists — skipping bootstrap.");
-            return;
-        }
-
-        if (userRepository.findByEmail(adminEmail).isPresent()) {
-            log.warn("[AdminSeeder] Email {} is taken but is not ADMIN — skipping bootstrap.", adminEmail);
-            return;
-        }
-
-        User admin = User.builder()
-                .username(adminUsername)
-                .email(adminEmail)
-                .password(passwordEncoder.encode(adminPassword))
-                .role(Role.ADMIN)
-                .build();
-        userRepository.save(admin);
-
-        log.warn("================================================================");
-        log.warn(" [AdminSeeder] Bootstrap ADMIN user created");
-        log.warn("   email:    {}", adminEmail);
-        log.warn("   password: {}   <-- CHANGE THIS IN PRODUCTION", adminPassword);
-        log.warn("================================================================");
+                    log.warn("================================================================");
+                    log.warn(" [AdminSeeder] Bootstrap ADMIN user created");
+                    log.warn("   email:    {}", adminEmail);
+                    log.warn("   password: {}   <-- CHANGE THIS IN PRODUCTION", adminPassword);
+                    log.warn("================================================================");
+                }
+        );
     }
 }
 

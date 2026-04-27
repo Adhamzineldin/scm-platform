@@ -28,10 +28,15 @@ const api = axios.create({
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const { token, userId } = useAuthStore.getState()
-  if (token) {
+  // Public auth endpoints must NEVER receive a stale token, otherwise a
+  // previous session can poison /login or /register on the server.
+  const isPublicAuth =
+    typeof config.url === 'string' && /\/api\/auth\/(login|register)\b/.test(config.url)
+
+  if (token && !isPublicAuth) {
     config.headers.set('Authorization', `Bearer ${token}`)
   }
-  if (userId) {
+  if (userId && !isPublicAuth) {
     config.headers.set('X-User-Id', userId)
   }
   return config
