@@ -27,6 +27,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/orders/**").hasAnyRole("ADMIN", "ORDER_PROCESSING")
                         .requestMatchers("/api/warehouse/**").hasAnyRole("ADMIN", "WAREHOUSE_SPECIALIST")
                         .requestMatchers("/api/shipments/**").hasAnyRole("ADMIN", "SHIPMENT_LEAD")
+                        // /api/dashboard/me works for any authenticated user (incl. STAFF)
                         .requestMatchers("/api/dashboard/**").authenticated()
                         .anyRequest().authenticated()
                 )

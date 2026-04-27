@@ -68,6 +68,7 @@ public class DashboardController {
                     "Monitoring",
                     "System Health"
             );
+            case "STAFF" -> List.of("Dashboard", "Profile");
             default -> List.of("Dashboard");
         };
     }

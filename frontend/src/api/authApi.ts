@@ -1,6 +1,13 @@
 import api from './axiosInstance.ts'
 
-export type Role = 'ADMIN' | 'WORKER' | 'CUSTOMER'
+export type Role =
+  | 'STAFF'
+  | 'ADMIN'
+  | 'INVENTORY_MANAGER'
+  | 'ORDER_PROCESSING'
+  | 'WAREHOUSE_SPECIALIST'
+  | 'SHIPMENT_LEAD'
+  | 'CLOUD_ARCHITECT'
 
 export interface LoginRequest {
   email: string
@@ -11,7 +18,8 @@ export interface RegisterRequest {
   username: string
   email: string
   password: string
-  role: Role
+  // role intentionally omitted — server always assigns STAFF on self-registration.
+  // Privileged roles are granted by an admin via PATCH /api/admin/users/{id}/role.
 }
 
 export interface AuthResponse {
@@ -57,4 +65,3 @@ export async function getUser(userId: string): Promise<UserResponse> {
   const { data } = await api.get<UserResponse>(`/api/users/${userId}`)
   return data
 }
-

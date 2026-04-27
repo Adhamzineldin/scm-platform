@@ -1,11 +1,9 @@
- import { type FormEvent, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { register, type RegisterRequest, type Role } from '../../api/authApi.ts'
+import { register, type RegisterRequest } from '../../api/authApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
-
-const ROLES: Role[] = ['CUSTOMER', 'WORKER', 'ADMIN']
 
 export default function RegisterPage() {
   const navigate = useNavigate()
@@ -14,14 +12,13 @@ export default function RegisterPage() {
     username: '',
     email: '',
     password: '',
-    role: 'CUSTOMER',
   })
 
   const mutation = useMutation({
     mutationFn: register,
     onSuccess: (data) => {
       setAuth(data)
-      toast.success('Account created')
+      toast.success('Account created — your role is STAFF until an admin promotes you')
       navigate('/dashboard', { replace: true })
     },
     onError: () => toast.error('Registration failed'),
@@ -39,6 +36,10 @@ export default function RegisterPage() {
         className="w-full max-w-sm space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
       >
         <h1 className="text-xl font-semibold text-slate-900">Create account</h1>
+        <p className="text-xs text-slate-500">
+          New accounts are created with the <b>STAFF</b> role. An administrator
+          can grant you a privileged role afterwards.
+        </p>
 
         {(['username', 'email', 'password'] as const).map((field) => (
           <div key={field} className="space-y-1">
@@ -52,19 +53,6 @@ export default function RegisterPage() {
             />
           </div>
         ))}
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-slate-700">Role</label>
-          <select
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-          >
-            {ROLES.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-        </div>
 
         <button
           type="submit"
@@ -84,4 +72,3 @@ export default function RegisterPage() {
     </div>
   )
 }
-
