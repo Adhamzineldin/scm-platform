@@ -37,6 +37,16 @@ export interface OrderResponse {
   items: OrderItemResponse[]
 }
 
+export interface OrderStatusHistoryEntry {
+  id: number
+  orderId: number
+  previousStatus: string | null
+  newStatus: string
+  changedAt: string
+  changedBy: string | null
+  note: string | null
+}
+
 export interface PagedResponse<T> {
   content: T[]
   pageNumber: number
@@ -75,5 +85,10 @@ export async function markOrderWarehouseComplete(orderId: number | string, worke
     `/api/orders/${orderId}/warehouse-complete`,
     { workerId },
   )
+  return data
+}
+
+export async function getOrderHistory(orderId: number | string): Promise<OrderStatusHistoryEntry[]> {
+  const { data } = await api.get<OrderStatusHistoryEntry[]>(`/api/orders/${orderId}/history`)
   return data
 }

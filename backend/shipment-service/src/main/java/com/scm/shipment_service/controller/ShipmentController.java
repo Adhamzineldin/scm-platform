@@ -36,6 +36,17 @@ public class ShipmentController {
     }
 
     /**
+     * Look up the shipment associated with a given order (returns 404 if none).
+     */
+    @GetMapping("/by-order/{orderId}")
+    public ShipmentDetailResponse getByOrder(@PathVariable Long orderId) {
+        Shipment shipment = repo.findFirstByOrderIdOrderByIdDesc(orderId)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, "No shipment for order " + orderId));
+        return mapToDetailResponse(shipment);
+    }
+
+    /**
      * List all shipments (paginated). Used by the dashboard.
      */
     @GetMapping

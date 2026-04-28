@@ -52,13 +52,28 @@ export function extractUserId(token: string): string | null {
   return (payload.userId as string) ?? (payload.sub as string) ?? null
 }
 
+export interface OtpSentResponse {
+  message: string
+  email: string
+}
+
 export async function login(body: LoginRequest): Promise<AuthResponse> {
   const { data } = await api.post<AuthResponse>('/api/auth/login', body)
   return data
 }
 
-export async function register(body: RegisterRequest): Promise<AuthResponse> {
-  const { data } = await api.post<AuthResponse>('/api/auth/register', body)
+export async function register(body: RegisterRequest): Promise<OtpSentResponse> {
+  const { data } = await api.post<OtpSentResponse>('/api/auth/register', body)
+  return data
+}
+
+export async function verifyOtp(email: string, otp: string): Promise<AuthResponse> {
+  const { data } = await api.post<AuthResponse>('/api/auth/verify-otp', { email, otp })
+  return data
+}
+
+export async function resendOtp(email: string): Promise<OtpSentResponse> {
+  const { data } = await api.post<OtpSentResponse>(`/api/auth/resend-otp?email=${encodeURIComponent(email)}`)
   return data
 }
 

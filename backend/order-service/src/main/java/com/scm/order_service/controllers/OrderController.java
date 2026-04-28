@@ -2,6 +2,7 @@ package com.scm.order_service.controllers;
 
 import com.scm.order_service.dto.orders.OrderRequest;
 import com.scm.order_service.dto.orders.OrderResponse;
+import com.scm.order_service.dto.orders.OrderStatusHistoryResponse;
 import com.scm.order_service.dto.orders.PagedResponse;
 import com.scm.order_service.dto.warehouse.WarehouseCompletionRequest;
 import com.scm.order_service.services.OrderService;
@@ -9,6 +10,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -48,6 +51,12 @@ public class OrderController {
     @ResponseStatus(HttpStatus.OK)
     public OrderResponse getOrder(@PathVariable Long orderId) {
         return orderService.getOrderById(orderId);
+    }
+
+    @GetMapping("/{orderId}/history")
+    @ResponseStatus(HttpStatus.OK)
+    public List<OrderStatusHistoryResponse> getOrderHistory(@PathVariable Long orderId) {
+        return orderService.getOrderHistory(orderId);
     }
 
     @PatchMapping("/{orderId}/warehouse-complete")

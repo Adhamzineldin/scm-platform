@@ -91,3 +91,12 @@ export async function getShipmentTracking(id: number | string): Promise<Shipment
   const { data } = await api.get<ShipmentTrackingResponse>(`/api/shipments/${id}/tracking`)
   return data
 }
+
+export async function getShipmentByOrder(orderId: number | string): Promise<ShipmentDetailResponse | null> {
+  try {
+    const { data } = await api.get<ShipmentDetailResponse>(`/api/shipments/by-order/${orderId}`)
+    return data
+  } catch {
+    return null
+  }
+}

@@ -64,6 +64,7 @@ public class AdminSeeder implements CommandLineRunner {
                             .email(adminEmail)
                             .password(passwordEncoder.encode(adminPassword))
                             .role(Role.ADMIN)
+                            .emailVerified(true)
                             .build();
                     userRepository.save(admin);
 

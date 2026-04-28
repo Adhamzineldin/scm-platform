@@ -18,30 +18,64 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final OtpService otpService;
 
-    public AuthResponse register(RegisterRequest request) {
-
+    /** Step 1: Create unverified account and send OTP. */
+    public OtpSentResponse register(RegisterRequest request) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
         }
 
-        // Self-registration ALWAYS produces a low-privilege STAFF user.
-        // Privileged roles must be granted by an admin via /api/admin/users/{id}/role.
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(Role.CUSTOMER)
+                .emailVerified(false)
                 .build();
 
-        User saved = userRepository.save(user);
+        userRepository.save(user);
+        otpService.generateAndSend(request.getEmail());
 
-        String token = jwtService.generateToken(saved.getEmail(), saved.getRole().name(), saved.getId());
-        return new AuthResponse(token, saved.getUsername(), saved.getRole().name());
+        return new OtpSentResponse("Verification code sent to your email", request.getEmail());
+    }
+
+    /** Step 2: Verify OTP and return JWT. */
+    public AuthResponse verifyOtp(OtpVerifyRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found for this email"));
+
+        if (user.isEmailVerified()) {
+            // Already verified — just return a token (idempotent)
+            String token = jwtService.generateToken(user.getEmail(), user.getRole().name(), user.getId());
+            return new AuthResponse(token, user.getUsername(), user.getRole().name());
+        }
+
+        if (!otpService.verify(request.getEmail(), request.getOtp())) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Invalid or expired verification code");
+        }
+
+        user.setEmailVerified(true);
+        userRepository.save(user);
+
+        String token = jwtService.generateToken(user.getEmail(), user.getRole().name(), user.getId());
+        return new AuthResponse(token, user.getUsername(), user.getRole().name());
+    }
+
+    /** Resend OTP (for existing unverified accounts). */
+    public OtpSentResponse resendOtp(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found for this email"));
+
+        if (user.isEmailVerified()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is already verified");
+        }
+
+        otpService.generateAndSend(email);
+        return new OtpSentResponse("Verification code resent", email);
     }
 
     public AuthResponse login(LoginRequest request) {
-
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
 
@@ -49,8 +83,11 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
         }
 
-        String token = jwtService.generateToken(user.getEmail(), user.getRole().name(), user.getId());
+        if (!user.isEmailVerified()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Email not verified — please check your email for the verification code");
+        }
 
+        String token = jwtService.generateToken(user.getEmail(), user.getRole().name(), user.getId());
         return new AuthResponse(token, user.getUsername(), user.getRole().name());
     }
 }

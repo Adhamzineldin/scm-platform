@@ -44,6 +44,17 @@ public class SchemaPatcher implements CommandLineRunner {
             );
 
             log.info("[SchemaPatcher] users_role_check refreshed with: {}", values);
+
+            // Backfill email_verified for any existing users created before 2FA was added.
+            // Only updates NULL rows (column was just added, no default) — new unverified users have false explicitly.
+            try {
+                jdbcTemplate.execute(
+                    "UPDATE users SET email_verified = true WHERE email_verified IS NULL"
+                );
+                log.info("[SchemaPatcher] Backfilled email_verified=true for pre-2FA users");
+            } catch (Exception ex) {
+                log.warn("[SchemaPatcher] email_verified backfill skipped (column may not exist yet): {}", ex.getMessage());
+            }
         } catch (Exception ex) {
             log.warn("[SchemaPatcher] Could not refresh users_role_check (table may not exist yet): {}",
                     ex.getMessage());

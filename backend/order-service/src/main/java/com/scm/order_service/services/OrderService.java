@@ -7,14 +7,17 @@ import com.scm.order_service.dto.messaging.OrderReadyForDispatchEvent;
 import com.scm.order_service.dto.orders.OrderRequest;
 import com.scm.order_service.dto.orders.OrderResponse;
 import com.scm.order_service.dto.orders.OrderItemRequest;
+import com.scm.order_service.dto.orders.OrderStatusHistoryResponse;
 import com.scm.order_service.dto.orders.PagedResponse;
 import com.scm.order_service.dto.warehouse.OrderTaskRequest;
 import com.scm.order_service.entity.Order;
+import com.scm.order_service.entity.OrderStatusHistory;
 import com.scm.order_service.enums.OrderStatus;
 import com.scm.order_service.exception.InsufficientStockException;
 import com.scm.order_service.mappers.PaginationMapper;
 import com.scm.order_service.messaging.OrderEventProducer;
 import com.scm.order_service.repository.OrderRepository;
+import com.scm.order_service.repository.OrderStatusHistoryRepository;
 import com.scm.order_service.mappers.OrderMapper;
 import com.scm.order_service.validator.OrderValidator;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +30,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -36,6 +40,7 @@ import java.util.concurrent.CompletableFuture;
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final OrderStatusHistoryRepository historyRepository;
     private final OrderMapper orderMapper;
     private final InventoryClient inventoryClient;
     private final WarehouseClient warehouseClient;
@@ -62,6 +67,10 @@ public class OrderService {
 
         Order savedOrder = orderRepository.save(order);
         OrderResponse response = orderMapper.toResponse(savedOrder);
+
+        historyRepository.save(new OrderStatusHistory(
+                savedOrder.getId(), null, OrderStatus.VALIDATED.name(),
+                savedOrder.getCreatedAt(), userId, "Order placed"));
 
         // Fire warehouse + Kafka off the HTTP thread so the response returns immediately
         CompletableFuture.runAsync(() -> {
@@ -101,6 +110,14 @@ public class OrderService {
         return orderMapper.toResponse(order);
     }
 
+    public List<OrderStatusHistoryResponse> getOrderHistory(Long orderId) {
+        return historyRepository.findByOrderIdOrderByChangedAtAsc(orderId).stream()
+                .map(h -> new OrderStatusHistoryResponse(
+                        h.getId(), h.getOrderId(), h.getPreviousStatus(), h.getNewStatus(),
+                        h.getChangedAt(), h.getChangedBy(), h.getNote()))
+                .toList();
+    }
+
     @Transactional
     public OrderResponse markOrderPicked(Long orderId, String workerId) {
         Order order = orderRepository.findById(orderId)
@@ -111,6 +128,10 @@ public class OrderService {
         String previousStatus = order.getStatus() != null ? order.getStatus().name() : null;
         order.setStatus(OrderStatus.PICKED);
         orderRepository.save(order);
+
+        historyRepository.save(new OrderStatusHistory(
+                orderId, previousStatus, OrderStatus.PICKED.name(),
+                LocalDateTime.now(), workerId, "Warehouse picking complete"));
 
         OrderResponse response = orderMapper.toResponse(order);
 

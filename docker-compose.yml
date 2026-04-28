@@ -128,6 +128,10 @@ services:
       EUREKA_HOST: discovery-server
       EUREKA_PORT: 8761
       EUREKA_CLIENT_ENABLED: "true"
+      SPRING_MAIL_HOST: smtp.gmail.com
+      SPRING_MAIL_PORT: 587
+      SPRING_MAIL_USERNAME: Adhams.Botmail@gmail.com
+      SPRING_MAIL_PASSWORD: tkfp vsuh kybi jwbh
 
   cart-service:
     build:
