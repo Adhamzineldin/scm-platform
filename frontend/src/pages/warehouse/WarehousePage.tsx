@@ -5,12 +5,15 @@ import { MapPin, Package, Layers, Plus } from 'lucide-react'
 import {
   completePickingTask,
   createSkuLocation,
+  createZone,
   listPickingTasks,
   listSkuLocations,
   listZones,
   startPickingTask,
   type SkuLocationRequest,
   type TaskStatus,
+  type WarehouseZoneRequest,
+  type ZoneType,
 } from '../../api/warehouseApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
 import { extractErrorMessage } from '../../api/axiosInstance.ts'
@@ -28,7 +31,11 @@ const ZONE_TYPE_BADGE: Record<string, string> = {
   PICKING:   'bg-amber-50 text-amber-700',
   PACKING:   'bg-orange-50 text-orange-700',
   SHIPPING:  'bg-emerald-50 text-emerald-700',
+  STAGING:   'bg-slate-100 text-slate-600',
 }
+
+const ALL_ZONE_TYPES: ZoneType[] = ['RECEIVING', 'STORAGE', 'PICKING', 'PACKING', 'SHIPPING', 'STAGING']
+const EMPTY_ZONE: WarehouseZoneRequest = { code: '', name: '', type: 'STORAGE', description: '' }
 
 type Tab = 'tasks' | 'locations' | 'zones'
 
@@ -41,6 +48,8 @@ export default function WarehousePage() {
   const [taskFilter, setTaskFilter] = useState<TaskStatus | 'ALL'>('ALL')
   const [showLocForm, setShowLocForm] = useState(false)
   const [locForm, setLocForm] = useState<SkuLocationRequest>(EMPTY_LOC)
+  const [showZoneForm, setShowZoneForm] = useState(false)
+  const [zoneForm, setZoneForm] = useState<WarehouseZoneRequest>(EMPTY_ZONE)
 
   const zonesQuery    = useQuery({ queryKey: ['zones'],    queryFn: listZones })
   const locsQuery     = useQuery({ queryKey: ['skuLocs'],  queryFn: listSkuLocations })
@@ -73,6 +82,17 @@ export default function WarehousePage() {
     onError: (err) => toast.error(extractErrorMessage(err, 'Failed to register location')),
   })
 
+  const addZoneMut = useMutation({
+    mutationFn: createZone,
+    onSuccess: () => {
+      toast.success('Zone created')
+      qc.invalidateQueries({ queryKey: ['zones'] })
+      setZoneForm(EMPTY_ZONE)
+      setShowZoneForm(false)
+    },
+    onError: (err) => toast.error(extractErrorMessage(err, 'Failed to create zone')),
+  })
+
   const busy = startMut.isPending || completeMut.isPending
 
   const tasks    = tasksQuery.data ?? []
@@ -82,6 +102,11 @@ export default function WarehousePage() {
   const handleAddLoc = (e: FormEvent) => {
     e.preventDefault()
     addLocMut.mutate({ ...locForm, onHandQuantity: Number(locForm.onHandQuantity) })
+  }
+
+  const handleAddZone = (e: FormEvent) => {
+    e.preventDefault()
+    addZoneMut.mutate(zoneForm)
   }
 
   const TAB_CLASSES = (active: boolean) =>
@@ -354,30 +379,114 @@ export default function WarehousePage() {
 
       {/* ── Zones ── */}
       {tab === 'zones' && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {zonesQuery.isLoading && <p className="text-slate-400 text-sm col-span-3">Loading…</p>}
-          {(zonesQuery.data ?? []).map((z) => (
-            <div key={z.id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-sm font-semibold text-slate-900">{z.code}</span>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ZONE_TYPE_BADGE[z.type] ?? 'bg-slate-100 text-slate-700'}`}>
-                  {z.type}
-                </span>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-500">
+              Zones are automatically seeded on startup (RCV-01, STOR-01, PICK-01, PACK-01, SHIP-01). Add custom zones here.
+            </p>
+            <button
+              onClick={() => setShowZoneForm((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              <Plus size={14} /> Create zone
+            </button>
+          </div>
+
+          {showZoneForm && (
+            <form
+              onSubmit={handleAddZone}
+              className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 space-y-3"
+            >
+              <h3 className="text-sm font-semibold text-indigo-900">Create warehouse zone</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Code <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    placeholder="e.g. STOR-02"
+                    value={zoneForm.code}
+                    onChange={(e) => setZoneForm({ ...zoneForm, code: e.target.value.toUpperCase() })}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Name <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    placeholder="e.g. Secondary Storage"
+                    value={zoneForm.name}
+                    onChange={(e) => setZoneForm({ ...zoneForm, name: e.target.value })}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Type <span className="text-red-500">*</span></label>
+                  <select
+                    required
+                    value={zoneForm.type}
+                    onChange={(e) => setZoneForm({ ...zoneForm, type: e.target.value as ZoneType })}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  >
+                    {ALL_ZONE_TYPES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Description</label>
+                  <input
+                    placeholder="Optional description"
+                    value={zoneForm.description ?? ''}
+                    onChange={(e) => setZoneForm({ ...zoneForm, description: e.target.value })}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  />
+                </div>
               </div>
-              <p className="text-sm font-medium text-slate-700">{z.name}</p>
-              {z.description && <p className="text-xs text-slate-500">{z.description}</p>}
-              <div className={`flex items-center gap-1.5 text-xs font-medium ${z.active ? 'text-emerald-600' : 'text-slate-400'}`}>
-                <span className={`h-2 w-2 rounded-full ${z.active ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                {z.active ? 'Active' : 'Inactive'}
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={addZoneMut.isPending}
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {addZoneMut.isPending ? 'Creating…' : 'Create zone'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowZoneForm(false); setZoneForm(EMPTY_ZONE) }}
+                  className="rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
               </div>
-            </div>
-          ))}
-          {(zonesQuery.data ?? []).length === 0 && !zonesQuery.isLoading && (
-            <div className="col-span-3 rounded-lg border border-dashed border-slate-200 p-10 text-center">
-              <Layers size={32} className="mx-auto mb-2 text-slate-300" />
-              <p className="text-sm text-slate-500">No warehouse zones found.</p>
-            </div>
+            </form>
           )}
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {zonesQuery.isLoading && <p className="text-slate-400 text-sm col-span-3">Loading…</p>}
+            {(zonesQuery.data ?? []).map((z) => (
+              <div key={z.id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-sm font-semibold text-slate-900">{z.code}</span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ZONE_TYPE_BADGE[z.type] ?? 'bg-slate-100 text-slate-700'}`}>
+                    {z.type}
+                  </span>
+                </div>
+                <p className="text-sm font-medium text-slate-700">{z.name}</p>
+                {z.description && <p className="text-xs text-slate-500">{z.description}</p>}
+                <div className={`flex items-center gap-1.5 text-xs font-medium ${z.active ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  <span className={`h-2 w-2 rounded-full ${z.active ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                  {z.active ? 'Active' : 'Inactive'}
+                </div>
+              </div>
+            ))}
+            {(zonesQuery.data ?? []).length === 0 && !zonesQuery.isLoading && (
+              <div className="col-span-3 rounded-lg border border-dashed border-slate-200 p-10 text-center">
+                <Layers size={32} className="mx-auto mb-2 text-slate-300" />
+                <p className="text-sm text-slate-500">No warehouse zones yet.</p>
+                <p className="text-xs text-slate-400 mt-1">They are seeded automatically on service startup, or create one above.</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

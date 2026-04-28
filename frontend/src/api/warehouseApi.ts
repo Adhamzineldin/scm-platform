@@ -1,6 +1,6 @@
 import api from './axiosInstance.ts'
 
-export type ZoneType = 'RECEIVING' | 'STORAGE' | 'PICKING' | 'PACKING' | 'SHIPPING'
+export type ZoneType = 'RECEIVING' | 'STORAGE' | 'PICKING' | 'PACKING' | 'SHIPPING' | 'STAGING'
 export type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
 
 export interface WarehouseZoneResponse {
@@ -43,8 +43,20 @@ export interface PickingTaskResponse {
   updatedAt: string
 }
 
+export interface WarehouseZoneRequest {
+  code: string
+  name: string
+  type: ZoneType
+  description?: string
+}
+
 export async function listZones(): Promise<WarehouseZoneResponse[]> {
   const { data } = await api.get<WarehouseZoneResponse[]>('/api/warehouse/zones')
+  return data
+}
+
+export async function createZone(body: WarehouseZoneRequest): Promise<WarehouseZoneResponse> {
+  const { data } = await api.post<WarehouseZoneResponse>('/api/warehouse/zones', body)
   return data
 }
 

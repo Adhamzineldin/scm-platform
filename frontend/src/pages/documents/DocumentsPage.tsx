@@ -20,7 +20,7 @@ export default function DocumentsPage() {
       setBusyId(order.id)
       const blob = await downloadOrderReceipt({
         orderId: order.id,
-        userId: userId ?? order.userId,
+        userId: String(userId ?? order.userId),
         referenceNumber: order.referenceNumber,
         shippingAddress: order.shippingAddress,
         status: order.status,
