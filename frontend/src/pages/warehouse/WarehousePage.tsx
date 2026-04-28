@@ -101,6 +101,10 @@ export default function WarehousePage() {
   const pending  = tasks.filter((t) => t.status === 'PENDING').length
   const inProg   = tasks.filter((t) => t.status === 'IN_PROGRESS').length
 
+  // SKU → product name lookup (so workers see what they're picking, not just a SKU code)
+  const productBySku: Record<string, string> = {}
+  for (const p of (productsQuery.data ?? [])) productBySku[p.sku] = p.name
+
   const handleAddLoc = (e: FormEvent) => {
     e.preventDefault()
     addLocMut.mutate({ ...locForm, onHandQuantity: Number(locForm.onHandQuantity) })
@@ -185,6 +189,7 @@ export default function WarehousePage() {
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Order</th>
+                  <th className="px-4 py-3">Product</th>
                   <th className="px-4 py-3">SKU</th>
                   <th className="px-4 py-3">Qty</th>
                   <th className="px-4 py-3">From</th>
@@ -196,10 +201,10 @@ export default function WarehousePage() {
               </thead>
               <tbody>
                 {tasksQuery.isLoading ? (
-                  <tr><td colSpan={8} className="p-6 text-center text-slate-400">Loading…</td></tr>
+                  <tr><td colSpan={9} className="p-6 text-center text-slate-400">Loading…</td></tr>
                 ) : tasks.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-10 text-center">
+                    <td colSpan={9} className="p-10 text-center">
                       <Package size={32} className="mx-auto mb-2 text-slate-300" />
                       <p className="text-sm text-slate-500">No tasks{taskFilter !== 'ALL' ? ` with status ${taskFilter}` : ''}.</p>
                       {taskFilter === 'ALL' && locsQuery.data?.length === 0 && (
@@ -211,7 +216,10 @@ export default function WarehousePage() {
                   tasks.map((t) => (
                     <tr key={t.id} className="border-t border-slate-100 hover:bg-slate-50">
                       <td className="px-4 py-3 font-medium">#{t.orderId}</td>
-                      <td className="px-4 py-3 font-mono text-xs">{t.sku}</td>
+                      <td className="px-4 py-3 text-slate-800">
+                        {productBySku[t.sku] ?? <span className="text-slate-400 italic">Unknown</span>}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{t.sku}</td>
                       <td className="px-4 py-3">{t.quantity}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">{t.sourceZoneCode} / {t.sourceShelfCode}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">{t.destinationZoneCode} / {t.destinationShelfCode}</td>

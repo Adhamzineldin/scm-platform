@@ -1,8 +1,10 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Circle, Package, Truck, MapPin, ClipboardList, User } from 'lucide-react'
+import { CheckCircle2, Circle, Package, Truck, MapPin, ClipboardList, User, ArrowRight } from 'lucide-react'
 import { getOrder, getOrderHistory } from '../../api/ordersApi.ts'
 import { getShipmentByOrder } from '../../api/shipmentsApi.ts'
+import { listTasksForOrder } from '../../api/warehouseApi.ts'
+import { listProducts } from '../../api/inventoryApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
 import { displayUser, useUserNames } from '../../hooks/useUserNames.ts'
 
@@ -24,6 +26,13 @@ const BADGE: Record<string, string> = {
   CANCELLED: 'bg-red-50 text-red-700 border border-red-200',
 }
 
+const TASK_BADGE: Record<string, string> = {
+  PENDING:     'bg-amber-50 text-amber-700 border border-amber-200',
+  IN_PROGRESS: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+  COMPLETED:   'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  CANCELLED:   'bg-red-50 text-red-700 border border-red-200',
+}
+
 function fmt(dt: string | null | undefined) {
   if (!dt) return '—'
   return new Date(dt).toLocaleString('en-US', {
@@ -37,6 +46,7 @@ export default function OrderDetailPage() {
   const { role } = useAuthStore()
 
   const isStaff = role === 'ADMIN' || role === 'WAREHOUSE_SPECIALIST' || role === 'ORDER_PROCESSING' || role === 'SHIPMENT_LEAD'
+  const canSeeWarehouse = role === 'ADMIN' || role === 'WAREHOUSE_SPECIALIST'
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['order', id],
@@ -56,6 +66,19 @@ export default function OrderDetailPage() {
     enabled: !!id,
     retry: false,
   })
+
+  // Live picking task progress (auto-refreshes while order is being fulfilled)
+  const { data: pickingTasks = [] } = useQuery({
+    queryKey: ['picking-tasks-for-order', id],
+    queryFn: () => listTasksForOrder(Number(id)),
+    enabled: !!id && (data?.status === 'VALIDATED' || data?.status === 'PICKED'),
+    refetchInterval: data?.status === 'VALIDATED' ? 10_000 : false,
+  })
+
+  // Resolve SKUs to product names for the items table
+  const { data: products = [] } = useQuery({ queryKey: ['products'], queryFn: listProducts })
+  const productBySku: Record<string, string> = {}
+  for (const p of products) productBySku[p.sku] = p.name
 
   // Resolve user IDs in history + customer ID + shipment history to usernames
   const userNames = useUserNames([
@@ -143,6 +166,89 @@ export default function OrderDetailPage() {
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           This order has been cancelled.
         </div>
+      )}
+
+      {/* Fulfillment / Picking Progress — only meaningful while order is being fulfilled */}
+      {!isCancelled && (data.status === 'VALIDATED' || data.status === 'PICKED') && (
+        (() => {
+          const total = pickingTasks.length
+          const completed = pickingTasks.filter((t) => t.status === 'COMPLETED').length
+          const inProgress = pickingTasks.filter((t) => t.status === 'IN_PROGRESS').length
+          const pct = total > 0 ? Math.round((completed / total) * 100) : 0
+          const noTasks = data.status === 'VALIDATED' && total === 0
+
+          return (
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-700">Warehouse Fulfillment</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {data.status === 'PICKED'
+                      ? 'All items have been picked and are ready for shipment.'
+                      : 'Picking is performed by warehouse staff. Progress updates automatically.'}
+                  </p>
+                </div>
+                {canSeeWarehouse && total > 0 && (
+                  <Link
+                    to="/warehouse"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                  >
+                    Open in Warehouse <ArrowRight size={12} />
+                  </Link>
+                )}
+              </div>
+
+              {noTasks ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  No picking tasks have been generated yet for this order.
+                  {canSeeWarehouse && ' Check the Warehouse service logs, or register SKU locations and re-trigger task creation.'}
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between text-xs">
+                      <span className="font-medium text-slate-600">
+                        {completed} of {total} items picked
+                        {inProgress > 0 && <span className="ml-2 text-indigo-600">· {inProgress} in progress</span>}
+                      </span>
+                      <span className="font-semibold text-slate-700">{pct}%</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={`h-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <ul className="divide-y divide-slate-100 rounded-md border border-slate-100">
+                    {pickingTasks.map((t) => (
+                      <li key={t.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium text-slate-700">
+                            {productBySku[t.sku] ?? t.sku}
+                          </p>
+                          <p className="text-[11px] text-slate-400">
+                            <span className="font-mono">{t.sku}</span> · qty {t.quantity} ·{' '}
+                            {t.sourceZoneCode}/{t.sourceShelfCode} → {t.destinationZoneCode}/{t.destinationShelfCode}
+                          </p>
+                        </div>
+                        {t.assignedWorkerId && (
+                          <span className="hidden text-[11px] text-slate-500 sm:inline">
+                            {displayUser(t.assignedWorkerId, userNames)}
+                          </span>
+                        )}
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${TASK_BADGE[t.status] ?? 'bg-slate-100 text-slate-700'}`}>
+                          {t.status.replace('_', ' ')}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )
+        })()
       )}
 
       {/* Status history timeline — detailed (shown to all) */}
@@ -290,6 +396,7 @@ export default function OrderDetailPage() {
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
+              <th className="px-4 py-3">Product</th>
               <th className="px-4 py-3">SKU</th>
               <th className="px-4 py-3">Qty</th>
               <th className="px-4 py-3">Unit price</th>
@@ -299,7 +406,10 @@ export default function OrderDetailPage() {
           <tbody>
             {data.items.map((item) => (
               <tr key={item.sku} className="border-t border-slate-100">
-                <td className="px-4 py-3 font-mono text-xs">{item.sku}</td>
+                <td className="px-4 py-3 text-slate-800">
+                  {productBySku[item.sku] ?? <span className="text-slate-400 italic">Unknown product</span>}
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.sku}</td>
                 <td className="px-4 py-3">{item.quantity}</td>
                 <td className="px-4 py-3">${Number(item.unitPrice).toFixed(2)}</td>
                 <td className="px-4 py-3 text-right">${(Number(item.unitPrice) * item.quantity).toFixed(2)}</td>
@@ -308,7 +418,7 @@ export default function OrderDetailPage() {
           </tbody>
           <tfoot className="bg-slate-50 border-t border-slate-200">
             <tr>
-              <td colSpan={3} className="px-4 py-3 text-right text-sm font-semibold text-slate-700">Total</td>
+              <td colSpan={4} className="px-4 py-3 text-right text-sm font-semibold text-slate-700">Total</td>
               <td className="px-4 py-3 text-right font-bold text-slate-900">${total.toFixed(2)}</td>
             </tr>
           </tfoot>
