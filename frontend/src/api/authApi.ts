@@ -49,7 +49,8 @@ export function decodeJwt(token: string): Record<string, unknown> | null {
 export function extractUserId(token: string): string | null {
   const payload = decodeJwt(token)
   if (!payload) return null
-  return (payload.userId as string) ?? (payload.sub as string) ?? null
+  const id = payload.userId ?? payload.sub
+  return id != null ? String(id) : null
 }
 
 export interface OtpSentResponse {
