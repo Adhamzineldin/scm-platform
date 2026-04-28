@@ -80,13 +80,6 @@ export async function createOrder(body: OrderRequest) {
   return data
 }
 
-export async function markOrderWarehouseComplete(orderId: number | string, workerId: string) {
-  const { data } = await api.patch<OrderResponse>(
-    `/api/orders/${orderId}/warehouse-complete`,
-    { workerId },
-  )
-  return data
-}
 
 export async function getOrderHistory(orderId: number | string): Promise<OrderStatusHistoryEntry[]> {
   const { data } = await api.get<OrderStatusHistoryEntry[]>(`/api/orders/${orderId}/history`)

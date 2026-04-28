@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-table'
 import { listOrders, listMyOrders, type OrderResponse, type OrderStatus } from '../../api/ordersApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
+import { displayUser, useUserNames } from '../../hooks/useUserNames.ts'
 
 const STATUS_BADGE: Record<OrderStatus, string> = {
   VALIDATED: 'bg-indigo-50 text-indigo-700',
@@ -29,6 +30,9 @@ export default function OrdersListPage() {
     queryFn: () => isCustomer ? listMyOrders({ page, size }) : listOrders({ page, size }),
   })
 
+  const orders = data?.content ?? []
+  const userNames = useUserNames(orders.map((o) => o.userId))
+
   const columns = useMemo<ColumnDef<OrderResponse>[]>(
     () => [
       {
@@ -38,7 +42,15 @@ export default function OrdersListPage() {
           <span className="font-mono text-xs font-medium text-slate-700">{getValue<string>() ?? '—'}</span>
         ),
       },
-      ...(!isCustomer ? [{ accessorKey: 'userId', header: 'User' } as ColumnDef<OrderResponse>] : []),
+      ...(!isCustomer
+        ? [{
+            accessorKey: 'userId',
+            header: 'Customer',
+            cell: ({ getValue }) => (
+              <span className="text-slate-700">{displayUser(getValue<string>(), userNames)}</span>
+            ),
+          } as ColumnDef<OrderResponse>]
+        : []),
       {
         accessorKey: 'status',
         header: 'Status',
@@ -67,11 +79,11 @@ export default function OrdersListPage() {
         ),
       },
     ],
-    [isCustomer],
+    [isCustomer, userNames],
   )
 
   const table = useReactTable({
-    data: data?.content ?? [],
+    data: orders,
     columns,
     getCoreRowModel: getCoreRowModel(),
   })

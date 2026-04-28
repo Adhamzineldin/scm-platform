@@ -1,13 +1,19 @@
 package com.scm.auth_service.service;
 
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.mail.SimpleMailMessage;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -16,6 +22,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class OtpService {
 
     private final JavaMailSender mailSender;
+    private final TemplateEngine templateEngine;
+
+    @Value("${spring.mail.username:noreply@scm-platform.local}")
+    private String fromAddress;
 
     private record OtpEntry(String code, Instant expiresAt) {
         boolean isExpired() { return Instant.now().isAfter(expiresAt); }
@@ -42,17 +52,21 @@ public class OtpService {
 
     private void sendEmail(String to, String code) {
         try {
-            SimpleMailMessage msg = new SimpleMailMessage();
-            msg.setTo(to);
-            msg.setSubject("Your SCM Platform verification code");
-            msg.setText(
-                "Your one-time verification code is: " + code + "\n\n" +
-                "This code expires in 10 minutes.\n\n" +
-                "If you did not create an account, you can safely ignore this email."
-            );
-            mailSender.send(msg);
+            Context ctx = new Context(Locale.ENGLISH);
+            ctx.setVariable("code", code);
+            ctx.setVariable("expiryMinutes", OTP_TTL_SECONDS / 60);
+            String html = templateEngine.process("otp-verification", ctx);
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setFrom(fromAddress);
+            helper.setTo(to);
+            helper.setSubject("Your SCM Platform verification code");
+            helper.setText(html, true);
+
+            mailSender.send(message);
             log.info("OTP email sent to {}", to);
-        } catch (Exception e) {
+        } catch (MessagingException | RuntimeException e) {
             log.error("Failed to send OTP email to {}: {}", to, e.getMessage());
         }
     }

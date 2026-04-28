@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Your verification code</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 0;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0"
+                       style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                    <tr>
+                        <td style="background:#1a1a2e;padding:24px 32px;color:#ffffff;text-align:center;">
+                            <h1 style="margin:0;font-size:20px;letter-spacing:.5px;">SCM Platform</h1>
+                            <p style="margin:6px 0 0;font-size:13px;opacity:.75;">Account verification</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:32px;">
+                            <h2 style="margin:0 0 12px;font-size:18px;color:#111827;">Verify your email</h2>
+                            <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#4b5563;">
+                                Use the one-time verification code below to complete your sign-up.
+                                The code expires in <strong th:text="${expiryMinutes}">10</strong> minutes.
+                            </p>
+                            <div style="margin:24px 0;text-align:center;">
+                                <div style="display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:10px;padding:18px 28px;">
+                                    <span th:text="${code}"
+                                          style="font-family:'Courier New',monospace;font-size:32px;letter-spacing:10px;font-weight:700;color:#1a1a2e;">123456</span>
+                                </div>
+                            </div>
+                            <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#6b7280;">
+                                If you did not create an account, you can safely ignore this email.
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background:#fafafa;padding:18px 32px;border-top:1px solid #eef0f3;text-align:center;font-size:12px;color:#9ca3af;">
+                            © SCM Platform · This is an automated message, please do not reply.
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+

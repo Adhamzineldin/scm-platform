@@ -72,11 +72,12 @@ public class OrderService {
                 savedOrder.getId(), null, OrderStatus.VALIDATED.name(),
                 savedOrder.getCreatedAt(), userId, "Order placed"));
 
-        // Fire Kafka confirmation first, then warehouse tasks, both off the HTTP thread
+        // Kick off side-effects independently — a failure in one MUST NOT block the other.
         CompletableFuture.runAsync(() -> {
-            orderEventProducer.sendOrderCreatedEvent(response);
-            createWarehouseTasks(response);
+            try { orderEventProducer.sendOrderCreatedEvent(response); }
+            catch (Exception ex) { log.error("Kafka publish failed for order {}: {}", response.getId(), ex.getMessage()); }
         });
+        CompletableFuture.runAsync(() -> createWarehouseTasks(response));
 
         return response;
     }
@@ -161,13 +162,13 @@ public class OrderService {
     private void createWarehouseTasks(OrderResponse orderResponse) {
         try {
             warehouseClient.createPickingTasks(mapWarehouseTaskRequest(orderResponse));
+            log.info("Picking tasks created in warehouse-service for order {}", orderResponse.getId());
         } catch (feign.FeignException ex) {
-            log.warn("Could not create warehouse picking tasks for order {} (HTTP {}): {}",
+            log.error("Could not create warehouse picking tasks for order {} (HTTP {}): {} — order is VALIDATED but has NO picking tasks until manually backfilled.",
                     orderResponse.getId(), ex.status(), extractMessage(ex.contentUTF8()));
-            // Non-fatal — order is saved; warehouse specialist assigns picking tasks later
         } catch (Exception ex) {
-            log.warn("Unexpected error creating warehouse tasks for order {}: {}",
-                    orderResponse.getId(), ex.getMessage());
+            log.error("Unexpected error creating warehouse tasks for order {}: {}",
+                    orderResponse.getId(), ex.getMessage(), ex);
         }
     }
 

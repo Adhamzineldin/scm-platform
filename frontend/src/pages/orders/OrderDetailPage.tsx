@@ -1,11 +1,10 @@
 import { useParams, Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
+import { useQuery } from '@tanstack/react-query'
 import { CheckCircle2, Circle, Package, Truck, MapPin, ClipboardList, User } from 'lucide-react'
-import { getOrder, markOrderWarehouseComplete, getOrderHistory } from '../../api/ordersApi.ts'
+import { getOrder, getOrderHistory } from '../../api/ordersApi.ts'
 import { getShipmentByOrder } from '../../api/shipmentsApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
-import { extractErrorMessage } from '../../api/axiosInstance.ts'
+import { displayUser, useUserNames } from '../../hooks/useUserNames.ts'
 
 const ALL_STATUSES = ['VALIDATED', 'PICKED', 'SHIPPED', 'DELIVERED'] as const
 
@@ -35,11 +34,9 @@ function fmt(dt: string | null | undefined) {
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const qc = useQueryClient()
-  const { role, userId } = useAuthStore()
+  const { role } = useAuthStore()
 
   const isStaff = role === 'ADMIN' || role === 'WAREHOUSE_SPECIALIST' || role === 'ORDER_PROCESSING' || role === 'SHIPMENT_LEAD'
-  const canPick = role === 'ADMIN' || role === 'WAREHOUSE_SPECIALIST'
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['order', id],
@@ -60,15 +57,12 @@ export default function OrderDetailPage() {
     retry: false,
   })
 
-  const completeMut = useMutation({
-    mutationFn: () => markOrderWarehouseComplete(id!, userId ?? 'unknown'),
-    onSuccess: () => {
-      toast.success('Order marked as picked')
-      qc.invalidateQueries({ queryKey: ['order', id] })
-      qc.invalidateQueries({ queryKey: ['order-history', id] })
-    },
-    onError: (err) => toast.error(extractErrorMessage(err, 'Update failed')),
-  })
+  // Resolve user IDs in history + customer ID + shipment history to usernames
+  const userNames = useUserNames([
+    data?.userId,
+    ...history.map((h) => h.changedBy),
+    ...((shipment?.history ?? []).map((h) => h.changedBy)),
+  ])
 
   if (isLoading) return <div className="flex h-40 items-center justify-center text-slate-400">Loading…</div>
   if (isError || !data) return <div className="text-red-600 p-4">Order not found.</div>
@@ -96,15 +90,6 @@ export default function OrderDetailPage() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          {canPick && data.status === 'VALIDATED' && (
-            <button
-              onClick={() => completeMut.mutate()}
-              disabled={completeMut.isPending}
-              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {completeMut.isPending ? 'Marking…' : 'Mark as picked'}
-            </button>
-          )}
           <Link to="/orders" className="text-sm text-indigo-600 hover:underline">← Back</Link>
         </div>
       </div>
@@ -181,7 +166,7 @@ export default function OrderDetailPage() {
                   <p className="text-xs text-slate-500 mt-0.5">{fmt(h.changedAt)}</p>
                   {h.changedBy && (
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
-                      <User size={10} /> {h.changedBy}
+                      <User size={10} /> {displayUser(h.changedBy, userNames)}
                     </p>
                   )}
                   {h.note && <p className="mt-0.5 text-xs text-slate-500 italic">{h.note}</p>}
@@ -249,7 +234,7 @@ export default function OrderDetailPage() {
                     <p className="text-xs text-slate-500">{fmt(h.changedAt)}</p>
                     {h.changedBy && (
                       <p className="text-xs text-slate-400 flex items-center gap-1">
-                        <User size={10} /> {h.changedBy}
+                        <User size={10} /> {displayUser(h.changedBy, userNames)}
                       </p>
                     )}
                     {h.description && <p className="text-xs text-slate-500 italic">{h.description}</p>}
@@ -284,8 +269,8 @@ export default function OrderDetailPage() {
             </div>
             {isStaff && (
               <div className="flex justify-between">
-                <dt className="text-slate-500">Customer ID</dt>
-                <dd className="font-mono text-xs">{data.userId}</dd>
+                <dt className="text-slate-500">Customer</dt>
+                <dd>{displayUser(data.userId, userNames)}</dd>
               </div>
             )}
           </dl>

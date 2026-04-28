@@ -46,6 +46,7 @@ public class PickingTaskService {
     @Transactional
     public List<PickingTaskResponse> createTasksFromOrder(OrderTaskRequest request) {
         List<PickingTaskResponse> tasks = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
         for (OrderItemPayload item : request.getItems()) {
             try {
                 PickingTaskRequest taskRequest = new PickingTaskRequest();
@@ -57,8 +58,18 @@ public class PickingTaskService {
             } catch (Exception ex) {
                 log.error("Failed to create picking task for SKU {} (Order #{}): {}",
                         item.getSku(), request.getOrderId(), ex.getMessage());
+                failures.add(item.getSku() + ": " + ex.getMessage());
             }
         }
+        if (tasks.isEmpty() && !request.getItems().isEmpty()) {
+            // No task was created at all — surface this so order-service logs an error and the
+            // VALIDATED order isn't silently left without any picking work.
+            throw new IllegalStateException(
+                    "No picking tasks could be created for order #" + request.getOrderId() +
+                    ". Causes: " + String.join("; ", failures));
+        }
+        log.info("Created {}/{} picking tasks for order #{}",
+                tasks.size(), request.getItems().size(), request.getOrderId());
         return tasks;
     }
 

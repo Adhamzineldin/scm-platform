@@ -15,6 +15,7 @@ import {
   type WarehouseZoneRequest,
   type ZoneType,
 } from '../../api/warehouseApi.ts'
+import { listProducts } from '../../api/inventoryApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
 import { extractErrorMessage } from '../../api/axiosInstance.ts'
 
@@ -53,6 +54,7 @@ export default function WarehousePage() {
 
   const zonesQuery    = useQuery({ queryKey: ['zones'],    queryFn: listZones })
   const locsQuery     = useQuery({ queryKey: ['skuLocs'],  queryFn: listSkuLocations })
+  const productsQuery = useQuery({ queryKey: ['products'], queryFn: listProducts })
   const tasksQuery    = useQuery({
     queryKey: ['pickingTasks', taskFilter],
     queryFn: () => listPickingTasks(taskFilter === 'ALL' ? undefined : taskFilter),
@@ -269,14 +271,18 @@ export default function WarehousePage() {
               <h3 className="text-sm font-semibold text-indigo-900">Register SKU location</h3>
               <div className="grid gap-3 sm:grid-cols-4">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">SKU</label>
-                  <input
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Product (SKU)</label>
+                  <select
                     required
-                    placeholder="e.g. SKU-AB12CD34"
                     value={locForm.sku}
                     onChange={(e) => setLocForm({ ...locForm, sku: e.target.value })}
                     className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-                  />
+                  >
+                    <option value="">— select product —</option>
+                    {(productsQuery.data ?? []).map((p) => (
+                      <option key={p.id} value={p.sku}>{p.sku} — {p.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600">Zone code</label>

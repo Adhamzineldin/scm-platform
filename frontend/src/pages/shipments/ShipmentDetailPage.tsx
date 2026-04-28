@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -7,7 +7,10 @@ import {
   getShipment,
   type DispatchRequest,
 } from '../../api/shipmentsApi.ts'
+import { getOrder } from '../../api/ordersApi.ts'
+import { listZones } from '../../api/warehouseApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
+import { displayUser, useUserNames } from '../../hooks/useUserNames.ts'
 
 const STATUS_STYLES: Record<string, { badge: string; dot: string }> = {
   CREATED:          { badge: 'bg-slate-100 text-slate-700 border-slate-200',    dot: 'bg-slate-400' },
@@ -22,11 +25,10 @@ const STATUS_STYLES: Record<string, { badge: string; dot: string }> = {
 }
 
 const DISPATCH_FIELDS: { key: keyof DispatchRequest; label: string; placeholder: string }[] = [
-  { key: 'carrierName',      label: 'Carrier Name',       placeholder: 'e.g. DHL, FedEx, UPS' },
   { key: 'carrierReference', label: 'Carrier Reference',  placeholder: 'Carrier tracking / booking ref' },
-  { key: 'pickupLocation',   label: 'Pickup Location',    placeholder: 'Warehouse / depot address' },
-  { key: 'deliveryAddress',  label: 'Delivery Address',   placeholder: 'Recipient address' },
 ]
+
+const COMMON_CARRIERS = ['DHL', 'FedEx', 'UPS', 'Aramex', 'SMSA Express', 'Bosta', 'Mylerz'] as const
 
 export default function ShipmentDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -47,6 +49,27 @@ export default function ShipmentDetailPage() {
     queryFn: () => getShipment(id!),
     enabled: !!id,
   })
+
+  // Resolve usernames for shipment history "changedBy" entries
+  const userNames = useUserNames((data?.history ?? []).map((h) => h.changedBy))
+
+  // Look up the linked order so we can prefill the delivery address (the order's shipping address)
+  const { data: linkedOrder } = useQuery({
+    queryKey: ['order', data?.orderId],
+    queryFn: () => getOrder(data!.orderId),
+    enabled: !!data?.orderId,
+  })
+
+  // Warehouse zones for "pickup location" dropdown
+  const { data: zones = [] } = useQuery({ queryKey: ['zones'], queryFn: listZones })
+
+  // Prefill delivery address once the linked order arrives
+  useEffect(() => {
+    if (linkedOrder?.shippingAddress && !form.deliveryAddress) {
+      setForm((f) => ({ ...f, deliveryAddress: linkedOrder.shippingAddress }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedOrder?.shippingAddress])
 
   const dispatchMut = useMutation({
     mutationFn: (body: DispatchRequest) => dispatchShipment(id!, body),
@@ -209,6 +232,45 @@ export default function ShipmentDetailPage() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-slate-700">
+                Carrier Name <span className="text-red-500">*</span>
+              </label>
+              <select
+                required
+                value={form.carrierName}
+                onChange={(e) => setForm({ ...form, carrierName: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">— select carrier —</option>
+                {COMMON_CARRIERS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-slate-700">
+                Pickup Location <span className="text-red-500">*</span>
+              </label>
+              <select
+                required
+                value={form.pickupLocation}
+                onChange={(e) => setForm({ ...form, pickupLocation: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">— select warehouse zone —</option>
+                {zones
+                  .filter((z) => z.active && (z.type === 'SHIPPING' || z.type === 'PACKING' || z.type === 'STAGING'))
+                  .map((z) => (
+                    <option key={z.id} value={`${z.code} — ${z.name}`}>{z.code} — {z.name}</option>
+                  ))}
+                {zones.filter((z) => z.active && !['SHIPPING', 'PACKING', 'STAGING'].includes(z.type)).map((z) => (
+                  <option key={z.id} value={`${z.code} — ${z.name}`}>{z.code} — {z.name}</option>
+                ))}
+              </select>
+            </div>
+
             {DISPATCH_FIELDS.map(({ key, label, placeholder }) => (
               <div key={key} className="space-y-1">
                 <label className="block text-xs font-medium text-slate-700">
@@ -223,6 +285,23 @@ export default function ShipmentDetailPage() {
                 />
               </div>
             ))}
+
+            <div className="md:col-span-2 space-y-1">
+              <label className="block text-xs font-medium text-slate-700">
+                Delivery Address <span className="text-red-500">*</span>
+                {linkedOrder?.shippingAddress && (
+                  <span className="ml-2 font-normal text-slate-400">(prefilled from order #{linkedOrder.id})</span>
+                )}
+              </label>
+              <textarea
+                required
+                rows={2}
+                placeholder="Recipient address"
+                value={form.deliveryAddress ?? ''}
+                onChange={(e) => setForm({ ...form, deliveryAddress: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -292,7 +371,7 @@ export default function ShipmentDetailPage() {
                     {h.changedBy && (
                       <>
                         <span className="text-slate-300">·</span>
-                        <span className="font-medium text-slate-600">{h.changedBy}</span>
+                        <span className="font-medium text-slate-600">{displayUser(h.changedBy, userNames)}</span>
                       </>
                     )}
                     {h.location && (

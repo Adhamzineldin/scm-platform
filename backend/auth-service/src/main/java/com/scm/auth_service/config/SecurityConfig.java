@@ -21,9 +21,9 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.disable())
-                .authorizeHttpRequests(auth -> auth
+                .authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/api/auth/register", "/api/auth/login",
-                                         "/api/auth/verify-otp", "/api/auth/resend-otp").permitAll()
+                                "/api/auth/verify-otp", "/api/auth/resend-otp").permitAll()
                         .requestMatchers("/api/users/**").permitAll()   // internal service-to-service lookup
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/inventory/**").hasAnyRole("ADMIN", "INVENTORY_MANAGER")
