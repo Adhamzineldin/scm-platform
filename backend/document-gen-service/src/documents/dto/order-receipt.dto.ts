@@ -44,7 +44,7 @@ export class OrderReceiptDto {
 
     @IsString()
     @IsNotEmpty()
-    idempotencyKey: string;
+    referenceNumber: string;
 
     @IsDateString()
     createdAt: string;

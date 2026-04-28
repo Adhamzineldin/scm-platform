@@ -3,13 +3,12 @@ import api from './axiosInstance.ts'
 export interface OrderReceiptDto {
   orderId: number
   userId: string
-  idempotencyKey: string
+  referenceNumber: string
   shippingAddress: string
   status: string
   createdAt: string
   items: { sku: string; quantity: number; unitPrice: number }[]
   customerName?: string
-  customerEmail?: string
 }
 
 /**

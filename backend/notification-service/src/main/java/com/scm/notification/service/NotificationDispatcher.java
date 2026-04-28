@@ -48,12 +48,19 @@ public class NotificationDispatcher {
     }
 
     private UserDto resolveUser(String userId) {
-        return new UserDto(
-                userId != null ? userId : "unknown",
-                "mohalya3@gmail.com",
-                "Adham Zineldin",
-                "01157000509"
-        );
+        if (userId == null || userId.isBlank()) {
+            log.warn("No userId in event — cannot resolve user details");
+            return new UserDto(null, "unknown", "unknown@scm-platform.com", null);
+        }
+        try {
+            long id = Long.parseLong(userId.trim());
+            return userClient.getUserById(id);
+        } catch (NumberFormatException ex) {
+            log.warn("userId '{}' is not a numeric ID — skipping user lookup", userId);
+        } catch (Exception ex) {
+            log.warn("Could not fetch user details for userId={}: {}", userId, ex.getMessage());
+        }
+        return new UserDto(null, "unknown", "unknown@scm-platform.com", null);
     }
 
     private byte[] tryGenerateReceipt(OrderCreatedEvent event) {
@@ -63,20 +70,21 @@ public class NotificationDispatcher {
                     event.userId(),
                     event.shippingAddress(),
                     event.status(),
-                    event.idempotencyKey() != null ? event.idempotencyKey() : event.referenceNumber(),
+                    event.referenceNumber(),
                     event.createdAt(),
                     event.items()
             );
             return documentClient.generateOrderReceipt(request);
         } catch (Exception ex) {
-            log.warn("Receipt generation failed for Order #{}, continuing without PDF: {}", event.orderId(), ex.getMessage());
+            log.warn("Receipt generation failed for Order #{}, continuing without PDF: {}",
+                    event.orderId(), ex.getMessage());
             return null;
         }
     }
 
     private void fanOut(NotificationContext context, Consumer<NotificationSender> action) {
-        log.info("Dispatching Order #{} to {} channel(s) for user {}",
-                context.orderId(), senders.size(), context.user().id());
+        log.info("Dispatching notification for Order #{} to {} channel(s) for user {}",
+                context.orderId(), senders.size(), context.user().userId());
 
         List<String> failures = senders.stream()
                 .map(sender -> attempt(sender, action))
@@ -84,9 +92,8 @@ public class NotificationDispatcher {
                 .toList();
 
         if (!failures.isEmpty()) {
-            throw new NotificationDispatchException(
-                    "Notification dispatch failed for Order #" + context.orderId() + " on channels: " + failures
-            );
+            log.error("Notification dispatch partially failed for Order #{} on channels: {}",
+                    context.orderId(), failures);
         }
     }
 

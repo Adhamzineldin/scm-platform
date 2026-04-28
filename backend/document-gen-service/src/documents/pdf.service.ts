@@ -84,9 +84,9 @@ export class PdfService {
 
     const details = [
       { label: 'Order ID:', value: `#${order.orderId}` },
+      { label: 'Reference #:', value: order.referenceNumber },
       { label: 'Status:', value: order.status },
       { label: 'Customer ID:', value: order.userId },
-      { label: 'Idempotency Key:', value: order.idempotencyKey },
     ];
 
     let y = startY + 20;

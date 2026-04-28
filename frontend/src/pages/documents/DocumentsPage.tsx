@@ -21,7 +21,7 @@ export default function DocumentsPage() {
       const blob = await downloadOrderReceipt({
         orderId: order.id,
         userId: userId ?? order.userId,
-        idempotencyKey: order.idempotencyKey,
+        referenceNumber: order.referenceNumber,
         shippingAddress: order.shippingAddress,
         status: order.status,
         createdAt: order.createdAt,

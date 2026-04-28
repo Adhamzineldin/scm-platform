@@ -9,7 +9,7 @@ public record OrderReceiptRequest(
         String userId,
         String shippingAddress,
         String status,
-        String idempotencyKey,
+        String referenceNumber,
         String createdAt,
         List<OrderItemPayload> items
 ) {}

@@ -20,7 +20,7 @@ public class EmailContentBuilder {
 
     public String buildOrderConfirmation(OrderConfirmationContext ctx) {
         Context tplContext = new Context();
-        tplContext.setVariable("customerName", ctx.user().fullName());
+        tplContext.setVariable("customerName", ctx.user().username());
         tplContext.setVariable("orderId", ctx.event().orderId());
         tplContext.setVariable("shippingAddress", ctx.event().shippingAddress());
         tplContext.setVariable("items", ctx.event().items());
@@ -29,7 +29,7 @@ public class EmailContentBuilder {
 
     public String buildStatusUpdate(StatusUpdateContext ctx) {
         Context tplContext = new Context();
-        tplContext.setVariable("customerName", ctx.user().fullName());
+        tplContext.setVariable("customerName", ctx.user().username());
         tplContext.setVariable("orderId", ctx.event().orderId());
         tplContext.setVariable("previousStatus", ctx.event().previousStatus());
         tplContext.setVariable("newStatus", ctx.event().newStatus());
@@ -39,7 +39,7 @@ public class EmailContentBuilder {
 
     public String buildShipmentDispatched(ShipmentDispatchedContext ctx) {
         Context tplContext = new Context();
-        tplContext.setVariable("customerName", ctx.user().fullName());
+        tplContext.setVariable("customerName", ctx.user().username());
         tplContext.setVariable("orderId", ctx.event().orderId());
         tplContext.setVariable("carrier", ctx.event().carrier());
         tplContext.setVariable("trackingNumber", ctx.event().trackingNumber());

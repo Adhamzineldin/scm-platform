@@ -26,7 +26,7 @@ public class RealtimeNotificationSender implements NotificationSender {
 
     @Override
     public void sendOrderConfirmation(OrderConfirmationContext context) {
-        String userId = context.user().id();
+        String userId = context.user().userId();
         InAppNotification payload = InAppNotification.orderConfirmed(
                 context.event().orderId(), userId
         );
@@ -37,7 +37,7 @@ public class RealtimeNotificationSender implements NotificationSender {
 
     @Override
     public void sendStatusUpdate(StatusUpdateContext context) {
-        String userId = context.user().id();
+        String userId = context.user().userId();
         InAppNotification payload = InAppNotification.statusUpdate(
                 context.event().orderId(), userId, context.event().newStatus()
         );
@@ -48,7 +48,7 @@ public class RealtimeNotificationSender implements NotificationSender {
 
     @Override
     public void sendShipmentDispatched(ShipmentDispatchedContext context) {
-        String userId = context.user().id();
+        String userId = context.user().userId();
         InAppNotification payload = InAppNotification.shipmentDispatched(
                 context.event().orderId(),
                 userId,
