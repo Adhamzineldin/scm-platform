@@ -9,7 +9,6 @@ import com.scm.order_service.dto.orders.OrderResponse;
 import com.scm.order_service.dto.orders.OrderItemRequest;
 import com.scm.order_service.dto.orders.PagedResponse;
 import com.scm.order_service.dto.warehouse.OrderTaskRequest;
-import com.scm.order_service.exception.WarehouseIntegrationException;
 import com.scm.order_service.entity.Order;
 import com.scm.order_service.enums.OrderStatus;
 import com.scm.order_service.exception.InsufficientStockException;
@@ -144,15 +143,12 @@ public class OrderService {
         try {
             warehouseClient.createPickingTasks(mapWarehouseTaskRequest(orderResponse));
         } catch (feign.FeignException ex) {
-            if (ex.status() >= 400 && ex.status() < 500) {
-                String body = ex.contentUTF8();
-                String msg = body != null && !body.isBlank()
-                        ? extractMessage(body)
-                        : "Warehouse rejected the order (status " + ex.status() + ")";
-                throw new WarehouseIntegrationException(msg, ex);
-            }
-            throw new WarehouseIntegrationException(
-                    "Warehouse Service is currently unavailable. Please try again later.", ex);
+            log.warn("Could not create warehouse picking tasks for order {} (HTTP {}): {}",
+                    orderResponse.getId(), ex.status(), extractMessage(ex.contentUTF8()));
+            // Non-fatal — order is saved; warehouse specialist assigns picking tasks later
+        } catch (Exception ex) {
+            log.warn("Unexpected error creating warehouse tasks for order {}: {}",
+                    orderResponse.getId(), ex.getMessage());
         }
     }
 

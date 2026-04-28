@@ -15,6 +15,7 @@ import WarehousePage from './pages/warehouse/WarehousePage.tsx'
 import ShipmentsListPage from './pages/shipments/ShipmentsListPage.tsx'
 import ShipmentDetailPage from './pages/shipments/ShipmentDetailPage.tsx'
 import CartPage from './pages/cart/CartPage.tsx'
+import ShopPage from './pages/shop/ShopPage.tsx'
 import AdminUsersPage from './pages/admin/AdminUsersPage.tsx'
 import NotificationsPage from './pages/notifications/NotificationsPage.tsx'
 import DocumentsPage from './pages/documents/DocumentsPage.tsx'
@@ -32,13 +33,14 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardHome />} />
 
           {/* Always-on for authenticated users */}
+          <Route path="/shop" element={<ShopPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
 
           {/* Role-restricted (mirrors auth-service SecurityConfig). ADMIN bypasses inside RoleRoute. */}
-          <Route element={<RoleRoute allow={['ORDER_PROCESSING']} />}>
+          <Route element={<RoleRoute allow={['ORDER_PROCESSING', 'CUSTOMER']} />}>
             <Route path="/orders" element={<OrdersListPage />} />
             <Route path="/orders/new" element={<CreateOrderPage />} />
             <Route path="/orders/:id" element={<OrderDetailPage />} />

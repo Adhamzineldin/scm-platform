@@ -13,6 +13,7 @@ public class ProductResponse {
     String sku;
     String name;
     String description;
+    String imageUrl;
     Integer quantity;
     BigDecimal unitPrice;
     Integer reorderLevel;

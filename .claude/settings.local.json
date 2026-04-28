@@ -19,7 +19,8 @@
       "Bash(curl *)",
       "Bash(docker compose *)",
       "Bash(docker image inspect *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(docker exec *)"
     ]
   }
 }

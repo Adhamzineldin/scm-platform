@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -28,7 +29,10 @@ public class InventoryService {
 
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
-        String normalizedSku = normalizeSku(request.getSku());
+        String normalizedSku = (request.getSku() == null || request.getSku().isBlank())
+                ? generateSku()
+                : normalizeSku(request.getSku());
+
         if (productRepository.existsBySkuIgnoreCase(normalizedSku)) {
             throw new DuplicateSkuException(normalizedSku);
         }
@@ -58,13 +62,14 @@ public class InventoryService {
     @Transactional
     public ProductResponse updateProduct(Long id, ProductRequest request) {
         Product product = findProductById(id);
-        String normalizedSku = normalizeSku(request.getSku());
-        if (productRepository.existsBySkuIgnoreCaseAndIdNot(normalizedSku, id)) {
-            throw new DuplicateSkuException(normalizedSku);
+        if (request.getSku() != null && !request.getSku().isBlank()) {
+            String normalizedSku = normalizeSku(request.getSku());
+            if (productRepository.existsBySkuIgnoreCaseAndIdNot(normalizedSku, id)) {
+                throw new DuplicateSkuException(normalizedSku);
+            }
+            request.setSku(normalizedSku);
         }
-
         productMapper.applyUpdates(product, request);
-        product.setSku(normalizedSku);
         return productMapper.toResponse(saveProductHandlingDuplicateSku(product));
     }
 
@@ -179,6 +184,10 @@ public class InventoryService {
             throw new IllegalArgumentException("SKU is required");
         }
         return sku.trim().toUpperCase();
+    }
+
+    private String generateSku() {
+        return "SKU-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
     }
 
     private Product saveProductHandlingDuplicateSku(Product product) {

@@ -6,6 +6,7 @@ import {
   Warehouse,
   Truck,
   ShoppingCart,
+  Store,
   Users,
   Bell,
   FileText,
@@ -25,11 +26,12 @@ interface NavLink {
 
 const ALL_LINKS: NavLink[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/orders', label: 'Orders', icon: ShoppingBag, roles: ['ORDER_PROCESSING'] },
+  { to: '/shop', label: 'Shop', icon: Store, roles: ['CUSTOMER'] },
+  { to: '/orders', label: 'Orders', icon: ShoppingBag, roles: ['ORDER_PROCESSING', 'CUSTOMER'] },
   { to: '/inventory', label: 'Inventory', icon: Boxes, roles: ['INVENTORY_MANAGER'] },
   { to: '/warehouse', label: 'Warehouse', icon: Warehouse, roles: ['WAREHOUSE_SPECIALIST'] },
   { to: '/shipments', label: 'Shipments', icon: Truck, roles: ['SHIPMENT_LEAD'] },
-  { to: '/cart', label: 'Cart', icon: ShoppingCart },
+  { to: '/cart', label: 'Cart', icon: ShoppingCart, roles: ['CUSTOMER'] },
   { to: '/documents', label: 'Documents', icon: FileText },
   { to: '/notifications', label: 'Notifications', icon: Bell },
   { to: '/admin/users', label: 'Users', icon: Users, roles: [] }, // ADMIN-only (empty list + ADMIN bypass)

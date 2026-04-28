@@ -10,13 +10,15 @@ import java.math.BigDecimal;
 
 @Data
 public class ProductRequest {
-    @NotBlank(message = "SKU is required")
+    /** Optional — auto-generated (SKU-XXXXXXXX) if left blank. */
     private String sku;
 
     @NotBlank(message = "Name is required")
     private String name;
 
     private String description;
+
+    private String imageUrl;
 
     @NotNull(message = "Quantity is required")
     @Min(value = 0, message = "Quantity cannot be negative")

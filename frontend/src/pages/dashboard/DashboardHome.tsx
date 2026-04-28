@@ -14,9 +14,10 @@ import {
 } from 'recharts'
 import { Boxes, ShoppingBag, Truck, AlertTriangle } from 'lucide-react'
 import type { ComponentType } from 'react'
-import { listOrders, type OrderStatus } from '../../api/ordersApi.ts'
+import { listMyOrders, listOrders, type OrderStatus } from '../../api/ordersApi.ts'
 import { listProducts } from '../../api/inventoryApi.ts'
 import { listShipments } from '../../api/shipmentsApi.ts'
+import { useAuthStore } from '../../store/authStore.ts'
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   VALIDATED: '#6366f1',
@@ -51,11 +52,38 @@ function StatCard({
 }
 
 export default function DashboardHome() {
-  const ordersQuery = useQuery({ queryKey: ['orders', 0, 50], queryFn: () => listOrders({ size: 50 }) })
-  const productsQuery = useQuery({ queryKey: ['products'], queryFn: listProducts })
-  const shipmentsQuery = useQuery({ queryKey: ['shipments', 0, 50], queryFn: () => listShipments({ size: 50 }) })
+  const role = useAuthStore((s) => s.role)
 
-  const orders = ordersQuery.data?.content ?? []
+  const canSeeAllOrders = role === 'ADMIN' || role === 'ORDER_PROCESSING'
+  const canSeeMyOrders = role === 'CUSTOMER'
+  const canSeeInventory = role === 'ADMIN' || role === 'INVENTORY_MANAGER'
+  const canSeeShipments = role === 'ADMIN' || role === 'SHIPMENT_LEAD'
+
+  const allOrdersQuery = useQuery({
+    queryKey: ['orders', 0, 50],
+    queryFn: () => listOrders({ size: 50 }),
+    enabled: canSeeAllOrders,
+  })
+
+  const myOrdersQuery = useQuery({
+    queryKey: ['my-orders', 0, 50],
+    queryFn: () => listMyOrders({ size: 50 }),
+    enabled: canSeeMyOrders,
+  })
+
+  const productsQuery = useQuery({
+    queryKey: ['products'],
+    queryFn: listProducts,
+    enabled: canSeeInventory,
+  })
+
+  const shipmentsQuery = useQuery({
+    queryKey: ['shipments', 0, 50],
+    queryFn: () => listShipments({ size: 50 }),
+    enabled: canSeeShipments,
+  })
+
+  const orders = (canSeeAllOrders ? allOrdersQuery.data?.content : myOrdersQuery.data?.content) ?? []
   const products = productsQuery.data ?? []
   const lowStock = products.filter((p) => p.lowStock).length
 
@@ -70,38 +98,76 @@ export default function DashboardHome() {
     .slice(0, 6)
     .map((p) => ({ name: p.sku, quantity: p.quantity }))
 
+  const orderCount = canSeeAllOrders
+    ? (allOrdersQuery.data?.totalElements ?? 0)
+    : (myOrdersQuery.data?.totalElements ?? 0)
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-slate-900">Overview</h1>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Orders" value={ordersQuery.data?.totalElements ?? 0} icon={ShoppingBag} tone="bg-indigo-50 text-indigo-600" />
-        <StatCard label="Products" value={products.length} icon={Boxes} tone="bg-sky-50 text-sky-600" />
-        <StatCard label="Shipments" value={shipmentsQuery.data?.totalElements ?? 0} icon={Truck} tone="bg-amber-50 text-amber-600" />
-        <StatCard label="Low Stock" value={lowStock} icon={AlertTriangle} tone="bg-red-50 text-red-600" />
+        {(canSeeAllOrders || canSeeMyOrders) && (
+          <StatCard
+            label={canSeeMyOrders ? 'My Orders' : 'Orders'}
+            value={orderCount}
+            icon={ShoppingBag}
+            tone="bg-indigo-50 text-indigo-600"
+          />
+        )}
+        {canSeeInventory && (
+          <>
+            <StatCard label="Products" value={products.length} icon={Boxes} tone="bg-sky-50 text-sky-600" />
+            <StatCard label="Low Stock" value={lowStock} icon={AlertTriangle} tone="bg-red-50 text-red-600" />
+          </>
+        )}
+        {canSeeShipments && (
+          <StatCard label="Shipments" value={shipmentsQuery.data?.totalElements ?? 0} icon={Truck} tone="bg-amber-50 text-amber-600" />
+        )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold text-slate-700">Orders by status</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={statusData} dataKey="value" nameKey="name" outerRadius={90} label>
-                  {statusData.map((entry) => (
-                    <Cell
-                      key={entry.name}
-                      fill={STATUS_COLORS[entry.name as OrderStatus] ?? '#94a3b8'}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+      {(canSeeAllOrders || canSeeMyOrders) && orders.length > 0 && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-slate-700">Orders by status</h2>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={statusData} dataKey="value" nameKey="name" outerRadius={90} label>
+                    {statusData.map((entry) => (
+                      <Cell
+                        key={entry.name}
+                        fill={STATUS_COLORS[entry.name as OrderStatus] ?? '#94a3b8'}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        </div>
 
+          {canSeeInventory && topProducts.length > 0 && (
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <h2 className="mb-3 text-sm font-semibold text-slate-700">Top products by quantity</h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topProducts}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="quantity" fill="#6366f1" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {canSeeInventory && topProducts.length > 0 && !orders.length && (
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-slate-700">Top products by quantity</h2>
           <div className="h-64">
@@ -116,8 +182,13 @@ export default function DashboardHome() {
             </ResponsiveContainer>
           </div>
         </div>
-      </div>
+      )}
+
+      {role === 'CUSTOMER' && (
+        <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-800">
+          <strong>Welcome!</strong> Browse the <a href="/shop" className="underline font-medium">Shop</a> to add products to your cart, then complete checkout from the <a href="/cart" className="underline font-medium">Cart</a> page.
+        </div>
+      )}
     </div>
   )
 }
-

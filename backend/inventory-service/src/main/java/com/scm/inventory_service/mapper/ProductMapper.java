@@ -15,9 +15,12 @@ public class ProductMapper {
     }
 
     public void applyUpdates(Product product, ProductRequest request) {
-        product.setSku(request.getSku().trim());
+        if (request.getSku() != null && !request.getSku().isBlank()) {
+            product.setSku(request.getSku().trim());
+        }
         product.setName(request.getName().trim());
         product.setDescription(request.getDescription());
+        product.setImageUrl(request.getImageUrl());
         product.setQuantity(request.getQuantity());
         product.setUnitPrice(request.getUnitPrice());
         product.setReorderLevel(request.getReorderLevel());
@@ -29,6 +32,7 @@ public class ProductMapper {
                 .sku(product.getSku())
                 .name(product.getName())
                 .description(product.getDescription())
+                .imageUrl(product.getImageUrl())
                 .quantity(product.getQuantity())
                 .unitPrice(product.getUnitPrice())
                 .reorderLevel(product.getReorderLevel())

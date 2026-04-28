@@ -35,6 +35,9 @@ public class Product {
     @Column(length = 500)
     private String description;
 
+    @Column(length = 500)
+    private String imageUrl;
+
     @Column(nullable = false)
     private Integer quantity;
 

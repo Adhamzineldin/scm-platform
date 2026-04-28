@@ -5,6 +5,7 @@ export interface ProductResponse {
   sku: string
   name: string
   description: string
+  imageUrl?: string
   unitPrice: number
   quantity: number
   reorderLevel: number
@@ -14,9 +15,10 @@ export interface ProductResponse {
 }
 
 export interface ProductRequest {
-  sku: string
+  sku?: string
   name: string
   description: string
+  imageUrl?: string
   unitPrice: number
   quantity: number
   reorderLevel: number
