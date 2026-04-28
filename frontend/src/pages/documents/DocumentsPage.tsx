@@ -7,7 +7,7 @@ import { downloadOrderReceipt, saveBlob } from '../../api/documentsApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
 
 export default function DocumentsPage() {
-  const { username } = useAuthStore()
+  const { username, userId } = useAuthStore()
   const [busyId, setBusyId] = useState<number | null>(null)
 
   const ordersQuery = useQuery({
@@ -20,10 +20,12 @@ export default function DocumentsPage() {
       setBusyId(order.id)
       const blob = await downloadOrderReceipt({
         orderId: order.id,
-        customerName: username ?? undefined,
+        userId: userId ?? order.userId,
+        idempotencyKey: order.idempotencyKey,
         shippingAddress: order.shippingAddress,
         status: order.status,
         createdAt: order.createdAt,
+        customerName: username ?? undefined,
         items: order.items.map((it) => ({
           sku: it.sku,
           quantity: it.quantity,

@@ -77,6 +77,7 @@ public class OrderEventProducer {
                 response.getUserId(),
                 response.getShippingAddress(),
                 response.getStatus().name(),
+                response.getIdempotencyKey(),
                 response.getCreatedAt() != null ? response.getCreatedAt().toString() : Instant.now().toString(),
                 itemPayloads
         );

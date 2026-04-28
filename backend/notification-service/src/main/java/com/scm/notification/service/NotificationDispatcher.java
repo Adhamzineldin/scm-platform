@@ -29,60 +29,49 @@ public class NotificationDispatcher {
     private final DocumentClient documentClient;
 
     public void dispatchOrderConfirmation(OrderCreatedEvent event) {
-//        UserDto user = userClient.getUserById(event.userId());
-
-        //TODO: use client when it's ready
-        UserDto user = new UserDto(
-                "1",
-                "mohalya3@gmail.com",
-                "Adham Zineldin",
-                "01157000509"
-        );
-        byte[] receipt = generateReceipt(event);
-
+        UserDto user = resolveUser(event.userId());
+        byte[] receipt = tryGenerateReceipt(event);
         OrderConfirmationContext context = new OrderConfirmationContext(event, user, receipt);
         fanOut(context, sender -> sender.sendOrderConfirmation(context));
     }
 
     public void dispatchStatusUpdate(OrderStatusChangedEvent event) {
-//        UserDto user = userClient.getUserById(event.userId());
-        //TODO: use client when it's ready
-        UserDto user = new UserDto(
-                "1",
-                "mohalya3@gmail.com",
-                "Adham Zineldin",
-                "01157000509"
-        );
-
+        UserDto user = resolveUser(event.userId());
         StatusUpdateContext context = new StatusUpdateContext(event, user);
         fanOut(context, sender -> sender.sendStatusUpdate(context));
     }
 
     public void dispatchShipmentConfirmation(ShipmentDispatchedEvent event) {
-//        UserDto user = userClient.getUserById(event.userId());
-        //TODO: use client when it's ready
-        UserDto user = new UserDto(
-                event.userId() != null ? event.userId() : "1",
-                "mohalya3@gmail.com",
-                "Adham Zineldin",
-                "01157000509"
-        );
-
+        UserDto user = resolveUser(event.userId());
         ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, user);
         fanOut(context, sender -> sender.sendShipmentDispatched(context));
     }
 
-    private byte[] generateReceipt(OrderCreatedEvent event) {
-        OrderReceiptRequest request = new OrderReceiptRequest(
-                event.orderId(),
-                event.userId(),
-                event.shippingAddress(),
-                event.status(),
-                event.idempotencyKey(),
-                event.createdAt(),
-                event.items()
+    private UserDto resolveUser(String userId) {
+        return new UserDto(
+                userId != null ? userId : "unknown",
+                "mohalya3@gmail.com",
+                "Adham Zineldin",
+                "01157000509"
         );
-        return documentClient.generateOrderReceipt(request);
+    }
+
+    private byte[] tryGenerateReceipt(OrderCreatedEvent event) {
+        try {
+            OrderReceiptRequest request = new OrderReceiptRequest(
+                    event.orderId(),
+                    event.userId(),
+                    event.shippingAddress(),
+                    event.status(),
+                    event.idempotencyKey() != null ? event.idempotencyKey() : event.referenceNumber(),
+                    event.createdAt(),
+                    event.items()
+            );
+            return documentClient.generateOrderReceipt(request);
+        } catch (Exception ex) {
+            log.warn("Receipt generation failed for Order #{}, continuing without PDF: {}", event.orderId(), ex.getMessage());
+            return null;
+        }
     }
 
     private void fanOut(NotificationContext context, Consumer<NotificationSender> action) {

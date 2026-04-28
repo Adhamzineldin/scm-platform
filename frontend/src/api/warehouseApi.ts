@@ -12,6 +12,22 @@ export interface WarehouseZoneResponse {
   active: boolean
 }
 
+export interface SkuLocationResponse {
+  id: number
+  sku: string
+  zoneCode: string
+  zoneName: string
+  shelfCode: string
+  onHandQuantity: number
+}
+
+export interface SkuLocationRequest {
+  sku: string
+  zoneCode: string
+  shelfCode: string
+  onHandQuantity: number
+}
+
 export interface PickingTaskResponse {
   id: number
   orderId: number
@@ -29,6 +45,16 @@ export interface PickingTaskResponse {
 
 export async function listZones(): Promise<WarehouseZoneResponse[]> {
   const { data } = await api.get<WarehouseZoneResponse[]>('/api/warehouse/zones')
+  return data
+}
+
+export async function listSkuLocations(): Promise<SkuLocationResponse[]> {
+  const { data } = await api.get<SkuLocationResponse[]>('/api/warehouse/locations')
+  return data
+}
+
+export async function createSkuLocation(body: SkuLocationRequest): Promise<SkuLocationResponse> {
+  const { data } = await api.post<SkuLocationResponse>('/api/warehouse/locations', body)
   return data
 }
 

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import App from './App.tsx'
 import './index.css'
+import '@aether/payment-gateway/dist/style.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
