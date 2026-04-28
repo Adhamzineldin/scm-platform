@@ -38,7 +38,7 @@ public class Order {
     @Column(name = "idempotency_key", nullable = false, unique = true)
     private String idempotencyKey;
 
-    @Column(name = "reference_number", nullable = false, unique = true, updatable = false, length = 24)
+    @Column(name = "reference_number", unique = true, updatable = false, length = 24)
     private String referenceNumber;
 
 

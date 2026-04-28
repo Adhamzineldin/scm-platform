@@ -19,7 +19,12 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    /* Local package aliases — keeps file: deps resolvable in Docker and IDE */
+    "paths": {
+      "@aether/payment-gateway": ["../packages/payment-gateway/dist/index"]
+    }
   },
   "include": [
     "src"

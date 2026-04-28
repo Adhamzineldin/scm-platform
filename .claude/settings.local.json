@@ -22,7 +22,11 @@
       "Bash(xargs grep *)",
       "Bash(docker exec *)",
       "Bash(awk '/^  order-service:/{found=1} found && /^  [a-z]/ && !/^  order-service:/{found=0} found' docker-compose.yml)",
-      "Bash(awk '/^  kafka:/{found=1} found && /^  [a-z]/ && !/^  kafka:/{found=0} found' docker-compose.yml)"
+      "Bash(awk '/^  kafka:/{found=1} found && /^  [a-z]/ && !/^  kafka:/{found=0} found' docker-compose.yml)",
+      "Bash(awk '/^  dashboard:/{found=1} found && /^  [a-z]/ && !/^  dashboard:/{found=0} found' \"G:\\\\University\\\\Third Year Term 2\\\\Distributed Systems & Cloud Computing\\\\scm-platform\\\\docker-compose.yml\")",
+      "Bash(npm install *)",
+      "Bash(node_modules/.bin/tsc -p tsconfig.app.json --noEmit)",
+      "Bash(docker build *)"
     ]
   }
 }

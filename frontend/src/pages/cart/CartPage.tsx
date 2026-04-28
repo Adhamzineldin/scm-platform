@@ -2,7 +2,9 @@ import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Trash2, Plus } from 'lucide-react'
+import { Trash2, Plus, ArrowLeft } from 'lucide-react'
+import { PaymentGateway } from '@aether/payment-gateway'
+import type { PaymentResult } from '@aether/payment-gateway'
 import {
   addCartItem,
   checkout,
@@ -15,10 +17,14 @@ import { listProducts, type ProductResponse } from '../../api/inventoryApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
 import { extractErrorMessage } from '../../api/axiosInstance.ts'
 
+type Step = 'cart' | 'payment'
+
 export default function CartPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const userIdNum = useAuthStore((s) => s.userIdNum)
+  const username = useAuthStore((s) => s.username)
+  const [step, setStep] = useState<Step>('cart')
   const [shippingAddress, setShippingAddress] = useState('')
   const [addProductId, setAddProductId] = useState<number | ''>('')
   const [addQty, setAddQty] = useState<number>(1)
@@ -73,11 +79,11 @@ export default function CartPage() {
       qc.invalidateQueries({ queryKey: ['cart', userIdNum] })
       navigate(`/orders/${order.id}`)
     },
-    onError: (err) => toast.error(extractErrorMessage(err, 'Checkout failed')),
+    onError: (err) => toast.error(extractErrorMessage(err, 'Order creation failed')),
   })
 
   if (userIdNum === null) {
-    return <div className="text-slate-500">Cart unavailable: missing user id.</div>
+    return <div className="text-slate-500">Cart unavailable: missing user session. Please log out and log back in.</div>
   }
   if (cartQuery.isLoading) return <div className="text-slate-500">Loading…</div>
 
@@ -87,13 +93,99 @@ export default function CartPage() {
     return sum + (p ? Number(p.unitPrice) * it.quantity : 0)
   }, 0)
 
-  const handleCheckout = (e: FormEvent) => {
+  const handleProceedToPayment = (e: FormEvent) => {
     e.preventDefault()
-    if (items.length === 0) {
-      toast.error('Cart is empty')
-      return
-    }
+    if (items.length === 0) return toast.error('Cart is empty')
+    if (!shippingAddress.trim()) return toast.error('Please enter a shipping address')
+    setStep('payment')
+  }
+
+  const handlePaymentSuccess = (_result: PaymentResult) => {
     checkoutMutation.mutate()
+  }
+
+  const handlePaymentError = (error: Error) => {
+    toast.error(error.message || 'Payment failed — please try again')
+  }
+
+  if (step === 'payment') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setStep('cart')}
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
+          >
+            <ArrowLeft size={16} /> Back to cart
+          </button>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Order summary */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-slate-900">Order summary</h2>
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Product</th>
+                    <th className="px-4 py-3 text-right">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it) => {
+                    const p = productMap.get(it.productId)
+                    const price = p ? Number(p.unitPrice) : 0
+                    return (
+                      <tr key={it.productId} className="border-t border-slate-100">
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{p?.name ?? `#${it.productId}`}</div>
+                          <div className="text-xs text-slate-400">{p?.sku} × {it.quantity}</div>
+                        </td>
+                        <td className="px-4 py-3 text-right">${(price * it.quantity).toFixed(2)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot className="bg-slate-50 border-t border-slate-200">
+                  <tr>
+                    <td className="px-4 py-3 font-semibold text-slate-700">Total</td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-900">${total.toFixed(2)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Shipping to</p>
+              <p className="text-slate-700">{shippingAddress}</p>
+            </div>
+          </div>
+
+          {/* Payment gateway */}
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Payment</h2>
+            {checkoutMutation.isPending ? (
+              <div className="flex items-center justify-center h-48 text-slate-500">
+                Confirming your order…
+              </div>
+            ) : (
+              <PaymentGateway
+                amount={total}
+                currency="USD"
+                orderId={`CART-${userIdNum}`}
+                customerEmail={username ?? undefined}
+                methods={['card', 'bank_transfer']}
+                sandbox
+                theme="light"
+                onSuccess={handlePaymentSuccess}
+                onError={handlePaymentError}
+                onCancel={() => setStep('cart')}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -130,7 +222,10 @@ export default function CartPage() {
                 const price = p ? Number(p.unitPrice) : 0
                 return (
                   <tr key={it.productId} className="border-t border-slate-100">
-                    <td className="px-4 py-3">{p ? `${p.sku} — ${p.name}` : `#${it.productId}`}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{p?.name ?? `#${it.productId}`}</div>
+                      <div className="text-xs text-slate-400 font-mono">{p?.sku}</div>
+                    </td>
                     <td className="px-4 py-3">${price.toFixed(2)}</td>
                     <td className="px-4 py-3">
                       <input
@@ -162,10 +257,10 @@ export default function CartPage() {
             )}
           </tbody>
           {items.length > 0 && (
-            <tfoot className="bg-slate-50">
+            <tfoot className="bg-slate-50 border-t border-slate-200">
               <tr>
-                <td colSpan={3} className="px-4 py-3 text-right font-semibold">Total</td>
-                <td className="px-4 py-3 font-semibold">${total.toFixed(2)}</td>
+                <td colSpan={3} className="px-4 py-3 text-right font-semibold text-slate-700">Total</td>
+                <td className="px-4 py-3 font-bold text-slate-900">${total.toFixed(2)}</td>
                 <td />
               </tr>
             </tfoot>
@@ -173,6 +268,7 @@ export default function CartPage() {
         </table>
       </div>
 
+      {/* Add product row */}
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col">
           <label className="text-xs font-medium text-slate-500">Product</label>
@@ -183,7 +279,7 @@ export default function CartPage() {
           >
             <option value="">— select —</option>
             {(productsQuery.data ?? []).map((p: ProductResponse) => (
-              <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
+              <option key={p.id} value={p.id}>{p.name} ({p.sku}) — ${Number(p.unitPrice).toFixed(2)}</option>
             ))}
           </select>
         </div>
@@ -210,7 +306,8 @@ export default function CartPage() {
         </button>
       </div>
 
-      <form onSubmit={handleCheckout} className="max-w-xl space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      {/* Checkout */}
+      <form onSubmit={handleProceedToPayment} className="max-w-xl space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-700">Checkout</h2>
         <input
           required
@@ -221,13 +318,12 @@ export default function CartPage() {
         />
         <button
           type="submit"
-          disabled={checkoutMutation.isPending || items.length === 0}
+          disabled={items.length === 0}
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          {checkoutMutation.isPending ? 'Processing…' : 'Place order'}
+          Proceed to payment →
         </button>
       </form>
     </div>
   )
 }
-
