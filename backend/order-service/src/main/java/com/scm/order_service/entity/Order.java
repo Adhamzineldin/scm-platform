@@ -59,9 +59,9 @@ public class Order {
 
     @PrePersist
     protected void onCreate() {
-        if (this.createdAt == null) {
-            this.createdAt = LocalDateTime.now();
-        }
+        LocalDateTime now = LocalDateTime.now();
+        if (this.createdAt == null) this.createdAt = now;
+        if (this.updatedAt == null) this.updatedAt = now;
         if (this.referenceNumber == null) {
             String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase();
@@ -71,6 +71,6 @@ public class Order {
 
     @PreUpdate
     protected void onUpdate() {
-        this.updatedAt = java.time.LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 }

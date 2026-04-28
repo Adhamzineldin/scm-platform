@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -62,8 +63,12 @@ public class OrderService {
         Order savedOrder = orderRepository.save(order);
         OrderResponse response = orderMapper.toResponse(savedOrder);
 
-        createWarehouseTasks(response);
-        orderEventProducer.sendOrderCreatedEvent(response);
+        // Fire warehouse + Kafka off the HTTP thread so the response returns immediately
+        CompletableFuture.runAsync(() -> {
+            createWarehouseTasks(response);
+            orderEventProducer.sendOrderCreatedEvent(response);
+        });
+
         return response;
     }
 
@@ -75,22 +80,6 @@ public class OrderService {
         markOrderPicked(event.getOrderId(), event.getWorkerId());
     }
 
-    private void transitionStatus(Order order, OrderStatus newStatus) {
-        OrderStatus previous = order.getStatus();
-        if (previous == newStatus) {
-            return;
-        }
-        order.setStatus(newStatus);
-        orderRepository.save(order);
-
-        orderEventProducer.sendOrderStatusChangedEvent(
-                order.getId(),
-                order.getUserId(),
-                previous != null ? previous.name() : null,
-                newStatus.name()
-        );
-    }
-    
 
     public PagedResponse<OrderResponse> getAllOrders(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
@@ -118,13 +107,22 @@ public class OrderService {
                 .orElseThrow(() -> new RuntimeException("Order not found with ID: " + orderId));
 
         log.info("Marking Order ID {} as PICKED by worker {}", orderId, workerId);
-        transitionStatus(order, OrderStatus.PICKED);
 
-        orderEventProducer.sendOrderReadyForDispatchEvent(
-                new OrderReadyForDispatchEvent(order.getId(), order.getUserId(), order.getShippingAddress())
-        );
+        String previousStatus = order.getStatus() != null ? order.getStatus().name() : null;
+        order.setStatus(OrderStatus.PICKED);
+        orderRepository.save(order);
 
-        return orderMapper.toResponse(order);
+        OrderResponse response = orderMapper.toResponse(order);
+
+        // Send Kafka events off the HTTP thread — don't block the caller
+        CompletableFuture.runAsync(() -> {
+            orderEventProducer.sendOrderStatusChangedEvent(orderId, order.getUserId(), previousStatus, OrderStatus.PICKED.name());
+            orderEventProducer.sendOrderReadyForDispatchEvent(
+                    new OrderReadyForDispatchEvent(order.getId(), order.getUserId(), order.getShippingAddress())
+            );
+        });
+
+        return response;
     }
 
     private void reserveInventory(List<OrderItemRequest> items) {

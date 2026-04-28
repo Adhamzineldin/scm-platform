@@ -73,8 +73,8 @@ export default function OrderDetailPage() {
                 </span>
               </dd>
             </div>
-            <div className="flex justify-between"><dt className="text-slate-500">Placed</dt><dd>{new Date(data.createdAt).toLocaleString()}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Last updated</dt><dd>{new Date(data.updatedAt).toLocaleString()}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">Placed</dt><dd>{data.createdAt ? new Date(data.createdAt).toLocaleString() : '—'}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">Last updated</dt><dd>{data.updatedAt ? new Date(data.updatedAt).toLocaleString() : '—'}</dd></div>
           </dl>
         </div>
 
