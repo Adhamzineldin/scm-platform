@@ -8,6 +8,7 @@ import java.util.List;
 @Data
 public class OrderResponse {
     private Long id;
+    private String referenceNumber;
     private String userId;
     private String shippingAddress;
     private String idempotencyKey;

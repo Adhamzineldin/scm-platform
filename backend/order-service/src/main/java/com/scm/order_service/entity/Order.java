@@ -6,7 +6,9 @@ import lombok.Data;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -36,6 +38,9 @@ public class Order {
     @Column(name = "idempotency_key", nullable = false, unique = true)
     private String idempotencyKey;
 
+    @Column(name = "reference_number", nullable = false, unique = true, updatable = false, length = 24)
+    private String referenceNumber;
+
 
     @CreatedDate 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -55,7 +60,12 @@ public class Order {
     @PrePersist
     protected void onCreate() {
         if (this.createdAt == null) {
-            this.createdAt = java.time.LocalDateTime.now();
+            this.createdAt = LocalDateTime.now();
+        }
+        if (this.referenceNumber == null) {
+            String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase();
+            this.referenceNumber = "ORD-" + date + "-" + suffix;
         }
     }
 

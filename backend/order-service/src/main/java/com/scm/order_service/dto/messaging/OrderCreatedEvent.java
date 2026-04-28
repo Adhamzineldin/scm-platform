@@ -1,6 +1,6 @@
 package com.scm.order_service.dto.messaging;
 import java.util.List;
 public record OrderCreatedEvent(
-        Long orderId, String userId, String shippingAddress, String status, 
-        String idempotencyKey, String createdAt, List<OrderItemPayload> items
+        Long orderId, String referenceNumber, String userId, String shippingAddress,
+        String status, String createdAt, List<OrderItemPayload> items
 ) {}

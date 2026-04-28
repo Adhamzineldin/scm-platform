@@ -69,7 +69,7 @@ export default function CartPage() {
     mutationFn: () =>
       checkout(userIdNum!, { shippingAddress, idempotencyKey: crypto.randomUUID() }),
     onSuccess: (order) => {
-      toast.success(`Order #${order.id} created`)
+      toast.success(`Order ${order.referenceNumber ?? `#${order.id}`} placed`)
       qc.invalidateQueries({ queryKey: ['cart', userIdNum] })
       navigate(`/orders/${order.id}`)
     },

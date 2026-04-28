@@ -31,7 +31,13 @@ export default function OrdersListPage() {
 
   const columns = useMemo<ColumnDef<OrderResponse>[]>(
     () => [
-      { accessorKey: 'id', header: 'ID' },
+      {
+        accessorKey: 'referenceNumber',
+        header: 'Reference',
+        cell: ({ getValue }) => (
+          <span className="font-mono text-xs font-medium text-slate-700">{getValue<string>() ?? '—'}</span>
+        ),
+      },
       ...(!isCustomer ? [{ accessorKey: 'userId', header: 'User' } as ColumnDef<OrderResponse>] : []),
       {
         accessorKey: 'status',

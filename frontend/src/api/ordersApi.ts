@@ -27,6 +27,7 @@ export interface OrderRequest {
 
 export interface OrderResponse {
   id: number
+  referenceNumber: string
   userId: string
   shippingAddress: string
   idempotencyKey: string

@@ -51,12 +51,15 @@ public class OrderEventProducer {
 
    
     private <T> void sendMessage(String topic, T payload) {
-        Message<T> message = MessageBuilder
-                .withPayload(payload)
-                .setHeader(KafkaHeaders.TOPIC, topic)
-                .build();
-
-        kafkaTemplate.send(message);
+        try {
+            Message<T> message = MessageBuilder
+                    .withPayload(payload)
+                    .setHeader(KafkaHeaders.TOPIC, topic)
+                    .build();
+            kafkaTemplate.send(message);
+        } catch (Exception ex) {
+            log.warn("Failed to publish event to topic '{}': {}", topic, ex.getMessage());
+        }
     }
 
     
@@ -70,10 +73,10 @@ public class OrderEventProducer {
 
         return new OrderCreatedEvent(
                 response.getId(),
+                response.getReferenceNumber(),
                 response.getUserId(),
                 response.getShippingAddress(),
                 response.getStatus().name(),
-                response.getIdempotencyKey(),
                 response.getCreatedAt() != null ? response.getCreatedAt().toString() : Instant.now().toString(),
                 itemPayloads
         );

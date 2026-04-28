@@ -31,13 +31,13 @@ public class OrderMapper {
     public OrderResponse toResponse(Order order) {
         OrderResponse response = new OrderResponse();
         response.setId(order.getId());
+        response.setReferenceNumber(order.getReferenceNumber());
         response.setUserId(order.getUserId());
         response.setStatus(order.getStatus());
         response.setShippingAddress(order.getShippingAddress());
-        response.setIdempotencyKey(order.getIdempotencyKey()); // Map back to response
+        response.setIdempotencyKey(order.getIdempotencyKey());
         response.setCreatedAt(order.getCreatedAt());
         response.setUpdatedAt(order.getUpdatedAt());
-        
         response.setItems(mapOrderItemResponses(order.getItems()));
         return response;
     }

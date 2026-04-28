@@ -34,10 +34,10 @@ public class AuthService {
                 .role(Role.CUSTOMER)
                 .build();
 
-        userRepository.save(user);
+        User saved = userRepository.save(user);
 
-        String token = jwtService.generateToken(user.getEmail(), user.getRole().name());
-        return new AuthResponse(token, user.getUsername(), user.getRole().name());
+        String token = jwtService.generateToken(saved.getEmail(), saved.getRole().name(), saved.getId());
+        return new AuthResponse(token, saved.getUsername(), saved.getRole().name());
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -49,7 +49,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
         }
 
-        String token = jwtService.generateToken(user.getEmail(), user.getRole().name());
+        String token = jwtService.generateToken(user.getEmail(), user.getRole().name(), user.getId());
 
         return new AuthResponse(token, user.getUsername(), user.getRole().name());
     }

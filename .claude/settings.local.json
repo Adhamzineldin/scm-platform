@@ -20,7 +20,9 @@
       "Bash(docker compose *)",
       "Bash(docker image inspect *)",
       "Bash(xargs grep *)",
-      "Bash(docker exec *)"
+      "Bash(docker exec *)",
+      "Bash(awk '/^  order-service:/{found=1} found && /^  [a-z]/ && !/^  order-service:/{found=0} found' docker-compose.yml)",
+      "Bash(awk '/^  kafka:/{found=1} found && /^  [a-z]/ && !/^  kafka:/{found=0} found' docker-compose.yml)"
     ]
   }
 }
