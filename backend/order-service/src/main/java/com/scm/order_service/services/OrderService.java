@@ -72,10 +72,10 @@ public class OrderService {
                 savedOrder.getId(), null, OrderStatus.VALIDATED.name(),
                 savedOrder.getCreatedAt(), userId, "Order placed"));
 
-        // Fire warehouse + Kafka off the HTTP thread so the response returns immediately
+        // Fire Kafka confirmation first, then warehouse tasks, both off the HTTP thread
         CompletableFuture.runAsync(() -> {
-            createWarehouseTasks(response);
             orderEventProducer.sendOrderCreatedEvent(response);
+            createWarehouseTasks(response);
         });
 
         return response;

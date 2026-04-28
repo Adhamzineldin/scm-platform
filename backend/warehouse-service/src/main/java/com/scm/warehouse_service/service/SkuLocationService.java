@@ -49,7 +49,7 @@ public class SkuLocationService {
         return toResponse(getLocationEntity(sku));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, noRollbackFor = ResourceNotFoundException.class)
     public SkuLocation getLocationEntity(String sku) {
         String normalizedSku = normalizeSku(sku);
         return skuLocationRepository.findBySkuIgnoreCase(normalizedSku)

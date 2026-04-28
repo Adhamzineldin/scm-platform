@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Trash2, Plus, ArrowLeft } from 'lucide-react'
 import { PaymentGateway } from '@aether/payment-gateway'
+import '@aether/payment-gateway/dist/style.css'
 import type { PaymentResult } from '@aether/payment-gateway'
 import {
   addCartItem,
