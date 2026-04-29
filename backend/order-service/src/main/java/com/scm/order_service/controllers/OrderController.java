@@ -59,7 +59,7 @@ public class OrderController {
         return orderService.getOrderHistory(orderId);
     }
 
-    @PatchMapping("/{orderId}/warehouse-complete")
+    @PostMapping("/{orderId}/warehouse-complete")
     @ResponseStatus(HttpStatus.OK)
     public OrderResponse markWarehouseComplete(
             @PathVariable Long orderId,

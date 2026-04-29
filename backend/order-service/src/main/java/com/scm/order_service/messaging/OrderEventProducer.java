@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -47,15 +48,13 @@ public class OrderEventProducer {
     }
 
     private <T> void sendMessage(String topic, T payload) {
-        kafkaTemplate.send(topic, payload)
-                .whenComplete((result, ex) -> {
-                    if (ex != null) {
-                        log.error("Failed to send to Kafka topic '{}': {}", topic, ex.getMessage());
-                    } else {
-                        log.debug("Published to topic '{}' offset={}", topic,
-                                result.getRecordMetadata().offset());
-                    }
-                });
+        try {
+            var result = kafkaTemplate.send(topic, payload).get(5, TimeUnit.SECONDS);
+            log.info("Published to topic '{}' partition={} offset={}",
+                    topic, result.getRecordMetadata().partition(), result.getRecordMetadata().offset());
+        } catch (Exception ex) {
+            log.error("FAILED to publish to Kafka topic '{}': {}", topic, ex.getMessage(), ex);
+        }
     }
 
     
