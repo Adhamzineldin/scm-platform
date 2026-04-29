@@ -1,7 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { listShipments } from '../../api/shipmentsApi.ts'
+import { Link, useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import { Truck } from 'lucide-react'
+import { listShipments, createShipment } from '../../api/shipmentsApi.ts'
+import { useAuthStore } from '../../store/authStore.ts'
 
 const STATUS_STYLES: Record<string, string> = {
   CREATED:     'bg-slate-100 text-slate-700 border-slate-200',
@@ -26,10 +29,30 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function ShipmentsListPage() {
   const [page, setPage] = useState(0)
+  const [showForm, setShowForm] = useState(false)
+  const [orderId, setOrderId] = useState('')
   const size = 20
+  const { role } = useAuthStore()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
+  const canCreate = role === 'ADMIN' || role === 'SHIPMENT_LEAD'
+
   const { data, isLoading } = useQuery({
     queryKey: ['shipments', page, size],
     queryFn: () => listShipments({ page, size }),
+  })
+
+  const createMutation = useMutation({
+    mutationFn: () => createShipment(Number(orderId)),
+    onSuccess: (shipment) => {
+      toast.success(`Shipment created — tracking ${shipment.trackingNumber}`)
+      queryClient.invalidateQueries({ queryKey: ['shipments'] })
+      setShowForm(false)
+      setOrderId('')
+      navigate(`/shipments/${shipment.id}`)
+    },
+    onError: () => toast.error('Failed to create shipment — check the order ID and try again'),
   })
 
   const shipments = data?.content ?? []
@@ -43,8 +66,53 @@ export default function ShipmentsListPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Shipments</h1>
-        <span className="text-sm text-slate-500">{data?.totalElements ?? 0} total</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-slate-500">{data?.totalElements ?? 0} total</span>
+          {canCreate && (
+            <button
+              onClick={() => setShowForm((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              <Truck size={14} />
+              Create Shipment
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Inline create form */}
+      {canCreate && showForm && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+          <p className="mb-3 text-sm font-semibold text-indigo-800">New Shipment</p>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 max-w-xs">
+              <label className="mb-1 block text-xs font-medium text-indigo-700">Order ID</label>
+              <input
+                type="number"
+                min="1"
+                placeholder="e.g. 42"
+                value={orderId}
+                onChange={(e) => setOrderId(e.target.value)}
+                className="w-full rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+            <button
+              onClick={() => createMutation.mutate()}
+              disabled={!orderId || createMutation.isPending}
+              className="mt-5 rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {createMutation.isPending ? 'Creating…' : 'Confirm'}
+            </button>
+            <button
+              onClick={() => { setShowForm(false); setOrderId('') }}
+              className="mt-5 rounded-md border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-indigo-600">The order must be in PICKED status. You can find eligible order IDs on the Orders page.</p>
+        </div>
+      )}
 
       {/* Quick-stats strip */}
       {!isLoading && Object.keys(statusCounts).length > 0 && (

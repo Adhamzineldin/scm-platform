@@ -1,9 +1,8 @@
 import { useParams, Link } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { CheckCircle2, Circle, Package, Truck, MapPin, ClipboardList, User, ArrowRight } from 'lucide-react'
-import toast from 'react-hot-toast'
 import { getOrder, getOrderHistory } from '../../api/ordersApi.ts'
-import { getShipmentByOrder, createShipment } from '../../api/shipmentsApi.ts'
+import { getShipmentByOrder } from '../../api/shipmentsApi.ts'
 import { listTasksForOrder } from '../../api/warehouseApi.ts'
 import { listProducts } from '../../api/inventoryApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
@@ -45,20 +44,9 @@ function fmt(dt: string | null | undefined) {
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { role } = useAuthStore()
-  const queryClient = useQueryClient()
 
   const isStaff = role === 'ADMIN' || role === 'WAREHOUSE_SPECIALIST' || role === 'ORDER_PROCESSING' || role === 'SHIPMENT_LEAD'
   const canSeeWarehouse = role === 'ADMIN' || role === 'WAREHOUSE_SPECIALIST'
-  const canCreateShipment = role === 'ADMIN' || role === 'SHIPMENT_LEAD'
-
-  const createShipmentMutation = useMutation({
-    mutationFn: () => createShipment(Number(id)),
-    onSuccess: () => {
-      toast.success('Shipment created')
-      queryClient.invalidateQueries({ queryKey: ['shipment-by-order', id] })
-    },
-    onError: () => toast.error('Failed to create shipment'),
-  })
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['order', id],
@@ -292,24 +280,6 @@ export default function OrderDetailPage() {
               )
             })}
           </ol>
-        </div>
-      )}
-
-      {/* Create Shipment — shown to ADMIN/SHIPMENT_LEAD when order is PICKED but no shipment yet */}
-      {canCreateShipment && data.status === 'PICKED' && !shipment && (
-        <div className="rounded-lg border border-sky-200 bg-sky-50 p-5 shadow-sm flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-sky-800">Ready for shipment</p>
-            <p className="mt-0.5 text-xs text-sky-700">All items have been picked. No shipment has been created yet.</p>
-          </div>
-          <button
-            onClick={() => createShipmentMutation.mutate()}
-            disabled={createShipmentMutation.isPending}
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
-          >
-            <Truck size={14} />
-            {createShipmentMutation.isPending ? 'Creating…' : 'Create Shipment'}
-          </button>
         </div>
       )}
 
