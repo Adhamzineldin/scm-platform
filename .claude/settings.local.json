@@ -27,7 +27,9 @@
       "Bash(npm install *)",
       "Bash(node_modules/.bin/tsc -p tsconfig.app.json --noEmit)",
       "Bash(docker build *)",
-      "Bash(xargs cat *)"
+      "Bash(xargs cat *)",
+      "Bash(winpty docker *)",
+      "PowerShell(docker exec scm-platform-kafka-1 *)"
     ]
   }
 }

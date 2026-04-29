@@ -8,9 +8,6 @@ import com.scm.order_service.dto.orders.OrderResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.messaging.Message;
-import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -49,17 +46,16 @@ public class OrderEventProducer {
         sendMessage("order-status-changed-topic", event);
     }
 
-   
     private <T> void sendMessage(String topic, T payload) {
-        try {
-            Message<T> message = MessageBuilder
-                    .withPayload(payload)
-                    .setHeader(KafkaHeaders.TOPIC, topic)
-                    .build();
-            kafkaTemplate.send(message);
-        } catch (Exception ex) {
-            log.warn("Failed to publish event to topic '{}': {}", topic, ex.getMessage());
-        }
+        kafkaTemplate.send(topic, payload)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to send to Kafka topic '{}': {}", topic, ex.getMessage());
+                    } else {
+                        log.debug("Published to topic '{}' offset={}", topic,
+                                result.getRecordMetadata().offset());
+                    }
+                });
     }
 
     

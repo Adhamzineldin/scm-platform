@@ -13,7 +13,6 @@ import com.scm.warehouse_service.entity.TaskStatus;
 import com.scm.warehouse_service.entity.WarehouseZone;
 import com.scm.warehouse_service.entity.ZoneType;
 import com.scm.warehouse_service.exception.IllegalTaskStateException;
-import com.scm.warehouse_service.exception.OrderServiceCallbackException;
 import com.scm.warehouse_service.exception.ResourceNotFoundException;
 import com.scm.warehouse_service.repository.PickingTaskRepository;
 import com.scm.warehouse_service.repository.WarehouseZoneRepository;
@@ -21,6 +20,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -169,7 +171,14 @@ public class PickingTaskService {
                 workerId.trim()
         );
 
-        notifyOrderServiceIfOrderIsFullyPicked(savedTask.getOrderId(), workerId.trim());
+        final Long orderId = savedTask.getOrderId();
+        final String trimmedWorkerId = workerId.trim();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                notifyOrderServiceIfOrderIsFullyPicked(orderId, trimmedWorkerId);
+            }
+        });
 
         return toResponse(savedTask);
     }
@@ -229,9 +238,10 @@ public class PickingTaskService {
             orderServiceClient.markWarehouseComplete(orderId, OrderCompletionRequest.builder()
                     .workerId(workerId)
                     .build());
-        } catch (feign.FeignException ex) {
-            throw new OrderServiceCallbackException(
-                    "Order Service callback failed after completing warehouse tasks.", ex);
+            log.info("Order #{} marked PICKED in order-service after all tasks completed", orderId);
+        } catch (Exception ex) {
+            log.error("Order Service callback failed for order #{} — tasks are committed, manual status update may be needed: {}",
+                    orderId, ex.getMessage());
         }
     }
 }

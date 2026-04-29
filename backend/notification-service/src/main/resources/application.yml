@@ -5,6 +5,10 @@ spring:
   application:
     name: notification-service
 
+  mvc:
+    async:
+      request-timeout: -1
+
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
