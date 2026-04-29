@@ -4,6 +4,8 @@ import com.scm.shipment_service.dto.DispatchRequest;
 import com.scm.shipment_service.dto.ShipmentDetailResponse;
 import com.scm.shipment_service.dto.ShipmentRequest;
 import com.scm.shipment_service.dto.ShipmentResponse;
+import com.scm.shipment_service.dto.StatusAdvanceRequest;
+import com.scm.shipment_service.model.ShipmentStatus;
 import com.scm.shipment_service.entity.DispatchRecord;
 import com.scm.shipment_service.entity.Shipment;
 import com.scm.shipment_service.entity.ShipmentHistory;
@@ -64,6 +66,18 @@ public class ShipmentController {
     @PostMapping("/{id}/dispatch")
     public ShipmentResponse dispatch(@PathVariable Long id, @RequestBody DispatchRequest req) {
         return ShipmentMapper.toResponse(service.dispatch(id, req));
+    }
+
+    /**
+     * Manually advance shipment status: SHIPPED → IN_TRANSIT or IN_TRANSIT → DELIVERED.
+     */
+    @PatchMapping("/{id}/status")
+    public ShipmentResponse advanceStatus(
+            @PathVariable Long id,
+            @RequestBody StatusAdvanceRequest req,
+            @RequestHeader(value = "X-User-Id", defaultValue = "SYSTEM") String userId) {
+        ShipmentStatus newStatus = ShipmentStatus.valueOf(req.getStatus().toUpperCase());
+        return ShipmentMapper.toResponse(service.advanceStatus(id, newStatus, userId, req.getNote()));
     }
 
     /**

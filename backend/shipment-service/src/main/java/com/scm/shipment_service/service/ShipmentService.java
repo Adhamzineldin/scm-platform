@@ -118,6 +118,30 @@ public class ShipmentService {
         return saved;
     }
 
+    @Transactional
+    public Shipment advanceStatus(Long id, ShipmentStatus newStatus, String changedBy, String note) {
+        Shipment s = repo.findById(id)
+                .orElseThrow(() -> new NotFoundException("Shipment not found"));
+
+        ShipmentStatus current = s.getStatus();
+
+        boolean valid = (current == ShipmentStatus.SHIPPED && newStatus == ShipmentStatus.IN_TRANSIT)
+                || (current == ShipmentStatus.IN_TRANSIT && newStatus == ShipmentStatus.DELIVERED);
+
+        if (!valid) {
+            throw new IllegalArgumentException(
+                    "Cannot advance shipment from " + current + " to " + newStatus);
+        }
+
+        s.setStatus(newStatus);
+        Shipment saved = repo.save(s);
+
+        String description = note != null && !note.isBlank() ? note : "Manual status update";
+        recordHistory(saved, current, newStatus, changedBy, description);
+
+        return saved;
+    }
+
     public void updateStatus(String tracking, String status) {
         Shipment s = repo.findByTrackingNumber(tracking)
                 .orElseThrow(() -> new NotFoundException("Shipment not found"));

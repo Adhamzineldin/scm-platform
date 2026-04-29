@@ -32,8 +32,12 @@ public class OrderController {
     @ResponseStatus(HttpStatus.OK)
     public PagedResponse<OrderResponse> getOrders(
             @RequestParam(value = "page", defaultValue = "0", required = false) int page,
-            @RequestParam(value = "size", defaultValue = "10", required = false) int size) {
+            @RequestParam(value = "size", defaultValue = "10", required = false) int size,
+            @RequestParam(value = "status", required = false) String status) {
 
+        if (status != null && !status.isBlank()) {
+            return orderService.getOrdersByStatus(status, page, size);
+        }
         return orderService.getAllOrders(page, size);
     }
 

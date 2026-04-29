@@ -105,3 +105,8 @@ export async function createShipment(orderId: number): Promise<ShipmentDetailRes
   const { data } = await api.post<ShipmentDetailResponse>('/api/shipments', { orderId })
   return data
 }
+
+export async function advanceShipmentStatus(id: number, status: string, note?: string): Promise<ShipmentResponse> {
+  const { data } = await api.patch<ShipmentResponse>(`/api/shipments/${id}/status`, { status, note })
+  return data
+}

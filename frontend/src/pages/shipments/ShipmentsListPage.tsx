@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Truck } from 'lucide-react'
 import { listShipments, createShipment } from '../../api/shipmentsApi.ts'
+import { listOrdersByStatus } from '../../api/ordersApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
 
 const STATUS_STYLES: Record<string, string> = {
@@ -29,8 +30,9 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function ShipmentsListPage() {
   const [page, setPage] = useState(0)
-  const [showForm, setShowForm] = useState(false)
-  const [orderId, setOrderId] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
+  const [orderSearch, setOrderSearch] = useState('')
   const size = 20
   const { role } = useAuthStore()
   const navigate = useNavigate()
@@ -43,17 +45,31 @@ export default function ShipmentsListPage() {
     queryFn: () => listShipments({ page, size }),
   })
 
+  // Load PICKED orders for the picker modal
+  const { data: pickedOrders, isLoading: ordersLoading } = useQuery({
+    queryKey: ['orders-picked'],
+    queryFn: () => listOrdersByStatus('PICKED', { size: 50 }),
+    enabled: showModal,
+  })
+
   const createMutation = useMutation({
-    mutationFn: () => createShipment(Number(orderId)),
+    mutationFn: () => createShipment(selectedOrderId!),
     onSuccess: (shipment) => {
-      toast.success(`Shipment created — tracking ${shipment.trackingNumber}`)
+      toast.success('Shipment created')
       queryClient.invalidateQueries({ queryKey: ['shipments'] })
-      setShowForm(false)
-      setOrderId('')
+      setShowModal(false)
+      setSelectedOrderId(null)
+      setOrderSearch('')
       navigate(`/shipments/${shipment.id}`)
     },
-    onError: () => toast.error('Failed to create shipment — check the order ID and try again'),
+    onError: () => toast.error('Failed to create shipment'),
   })
+
+  const closeModal = () => {
+    setShowModal(false)
+    setSelectedOrderId(null)
+    setOrderSearch('')
+  }
 
   const shipments = data?.content ?? []
 
@@ -61,6 +77,15 @@ export default function ShipmentsListPage() {
     acc[s.status] = (acc[s.status] ?? 0) + 1
     return acc
   }, {})
+
+  const qs = orderSearch.trim().toLowerCase()
+  const filteredOrders = (pickedOrders?.content ?? []).filter(
+    (o) =>
+      !qs ||
+      o.referenceNumber?.toLowerCase().includes(qs) ||
+      o.id.toString().includes(qs) ||
+      o.shippingAddress?.toLowerCase().includes(qs),
+  )
 
   return (
     <div className="space-y-5">
@@ -70,7 +95,7 @@ export default function ShipmentsListPage() {
           <span className="text-sm text-slate-500">{data?.totalElements ?? 0} total</span>
           {canCreate && (
             <button
-              onClick={() => setShowForm((v) => !v)}
+              onClick={() => setShowModal(true)}
               className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
             >
               <Truck size={14} />
@@ -80,37 +105,75 @@ export default function ShipmentsListPage() {
         </div>
       </div>
 
-      {/* Inline create form */}
-      {canCreate && showForm && (
-        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
-          <p className="mb-3 text-sm font-semibold text-indigo-800">New Shipment</p>
-          <div className="flex items-center gap-3">
-            <div className="flex-1 max-w-xs">
-              <label className="mb-1 block text-xs font-medium text-indigo-700">Order ID</label>
+      {/* Order picker modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Create Shipment — Select Order</h2>
+              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
+            </div>
+
+            <div className="px-5 py-3 border-b border-slate-100">
               <input
-                type="number"
-                min="1"
-                placeholder="e.g. 42"
-                value={orderId}
-                onChange={(e) => setOrderId(e.target.value)}
-                className="w-full rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                type="text"
+                placeholder="Search by reference, order ID or address…"
+                value={orderSearch}
+                onChange={(e) => setOrderSearch(e.target.value)}
+                autoFocus
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
               />
             </div>
-            <button
-              onClick={() => createMutation.mutate()}
-              disabled={!orderId || createMutation.isPending}
-              className="mt-5 rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {createMutation.isPending ? 'Creating…' : 'Confirm'}
-            </button>
-            <button
-              onClick={() => { setShowForm(false); setOrderId('') }}
-              className="mt-5 rounded-md border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
+
+            <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+              {ordersLoading ? (
+                <div className="flex items-center justify-center py-8 text-slate-400 text-sm">Loading orders…</div>
+              ) : filteredOrders.length === 0 ? (
+                <div className="py-8 text-center text-sm text-slate-400">
+                  {qs ? `No PICKED orders matching "${orderSearch}"` : 'No PICKED orders available'}
+                </div>
+              ) : (
+                filteredOrders.map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => setSelectedOrderId(o.id)}
+                    className={`w-full text-left px-5 py-3 hover:bg-slate-50 transition-colors ${
+                      selectedOrderId === o.id ? 'bg-indigo-50 border-l-2 border-indigo-500' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{o.referenceNumber ?? `#${o.id}`}</p>
+                        <p className="text-xs text-slate-500 mt-0.5 truncate max-w-xs">{o.shippingAddress}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs text-slate-400">Order #{o.id}</p>
+                        <p className="text-xs text-slate-400">{o.items.length} item{o.items.length !== 1 ? 's' : ''}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
+              <p className="text-xs text-slate-400">
+                {selectedOrderId ? `Order #${selectedOrderId} selected` : 'Select an order above'}
+              </p>
+              <div className="flex gap-2">
+                <button onClick={closeModal} className="rounded-md border border-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => createMutation.mutate()}
+                  disabled={!selectedOrderId || createMutation.isPending}
+                  className="rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {createMutation.isPending ? 'Creating…' : 'Create Shipment'}
+                </button>
+              </div>
+            </div>
           </div>
-          <p className="mt-2 text-xs text-indigo-600">The order must be in PICKED status. You can find eligible order IDs on the Orders page.</p>
         </div>
       )}
 

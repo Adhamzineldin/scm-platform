@@ -63,6 +63,13 @@ export async function listOrders(params: { page?: number; size?: number } = {}) 
   return data
 }
 
+export async function listOrdersByStatus(status: OrderStatus, params: { page?: number; size?: number } = {}) {
+  const { data } = await api.get<PagedResponse<OrderResponse>>('/api/orders', {
+    params: { status, page: params.page ?? 0, size: params.size ?? 50 },
+  })
+  return data
+}
+
 export async function listMyOrders(params: { page?: number; size?: number } = {}) {
   const { data } = await api.get<PagedResponse<OrderResponse>>('/api/orders/my-orders', {
     params: { page: params.page ?? 0, size: params.size ?? 20 },

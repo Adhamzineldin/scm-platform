@@ -35,7 +35,11 @@ export default function NotificationsPage() {
         {items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 p-10 text-slate-500">
             <Bell size={32} className="text-slate-300" />
-            <p className="text-sm">No notifications yet.</p>
+            <p className="text-sm font-medium">No notifications yet</p>
+            <p className="text-xs text-slate-400 text-center max-w-xs">
+              Notifications appear here when orders are placed, statuses change, or shipments are dispatched.
+              They are delivered in real time and reset when you reload the page.
+            </p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">

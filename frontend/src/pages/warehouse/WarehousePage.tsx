@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { MapPin, Package, Layers, Plus } from 'lucide-react'
 import {
+  cancelPickingTask,
   completePickingTask,
   createSkuLocation,
   createZone,
@@ -48,6 +49,9 @@ export default function WarehousePage() {
   const userId = useAuthStore((s) => s.userId)
   const [tab, setTab] = useState<Tab>('tasks')
   const [taskFilter, setTaskFilter] = useState<TaskStatus | 'ALL'>('ALL')
+  const [taskSearch, setTaskSearch] = useState('')
+  const role = useAuthStore((s) => s.role)
+  const canCancel = role === 'ADMIN' || role === 'WAREHOUSE_SPECIALIST'
   const [showLocForm, setShowLocForm] = useState(false)
   const [locForm, setLocForm] = useState<SkuLocationRequest>(EMPTY_LOC)
   const [showZoneForm, setShowZoneForm] = useState(false)
@@ -96,7 +100,13 @@ export default function WarehousePage() {
     onError: (err) => toast.error(extractErrorMessage(err, 'Failed to create zone')),
   })
 
-  const busy = startMut.isPending || completeMut.isPending
+  const cancelMut = useMutation({
+    mutationFn: ({ id }: { id: number }) => cancelPickingTask(id),
+    onSuccess: () => { toast.success('Task cancelled'); qc.invalidateQueries({ queryKey: ['pickingTasks'] }) },
+    onError:   (err) => toast.error(extractErrorMessage(err, 'Failed to cancel task')),
+  })
+
+  const busy = startMut.isPending || completeMut.isPending || cancelMut.isPending
 
   const tasks    = tasksQuery.data ?? []
   const pending  = tasks.filter((t) => t.status === 'PENDING').length
@@ -105,6 +115,15 @@ export default function WarehousePage() {
   // SKU → product name lookup (so workers see what they're picking, not just a SKU code)
   const productBySku: Record<string, string> = {}
   for (const p of (productsQuery.data ?? [])) productBySku[p.sku] = p.name
+
+  const q = taskSearch.trim().toLowerCase()
+  const visibleTasks = q
+    ? tasks.filter((t) =>
+        t.orderId.toString().includes(q) ||
+        t.sku.toLowerCase().includes(q) ||
+        (productBySku[t.sku] ?? '').toLowerCase().includes(q)
+      )
+    : tasks
 
   // Worker ID → username lookup
   const workerNames = useUserNames(tasks.map((t) => t.assignedWorkerId))
@@ -168,10 +187,29 @@ export default function WarehousePage() {
       {/* ── Picking Tasks ── */}
       {tab === 'tasks' && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-slate-500">Auto-refreshes every 15 s. Complete all tasks for an order to automatically mark it as Picked.</p>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">Filter:</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search order, SKU, product…"
+                  value={taskSearch}
+                  onChange={(e) => setTaskSearch(e.target.value)}
+                  className="w-52 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs placeholder-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                />
+                {taskSearch && (
+                  <button
+                    onClick={() => setTaskSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              {/* Status filter */}
+              <span className="text-xs text-slate-500">Status:</span>
               {(['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETED'] as const).map((s) => (
                 <button
                   key={s}
@@ -182,7 +220,7 @@ export default function WarehousePage() {
                       : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  {s}
+                  {s.replace('_', ' ')}
                 </button>
               ))}
             </div>
@@ -206,18 +244,20 @@ export default function WarehousePage() {
               <tbody>
                 {tasksQuery.isLoading ? (
                   <tr><td colSpan={9} className="p-6 text-center text-slate-400">Loading…</td></tr>
-                ) : tasks.length === 0 ? (
+                ) : visibleTasks.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="p-10 text-center">
                       <Package size={32} className="mx-auto mb-2 text-slate-300" />
-                      <p className="text-sm text-slate-500">No tasks{taskFilter !== 'ALL' ? ` with status ${taskFilter}` : ''}.</p>
-                      {taskFilter === 'ALL' && locsQuery.data?.length === 0 && (
+                      <p className="text-sm text-slate-500">
+                        {q ? `No tasks matching "${taskSearch}".` : `No tasks${taskFilter !== 'ALL' ? ` with status ${taskFilter.replace('_', ' ')}` : ''}.`}
+                      </p>
+                      {!q && taskFilter === 'ALL' && locsQuery.data?.length === 0 && (
                         <p className="mt-1 text-xs text-amber-600">No SKU locations registered — tasks can't be auto-created from orders until you add locations.</p>
                       )}
                     </td>
                   </tr>
                 ) : (
-                  tasks.map((t) => (
+                  visibleTasks.map((t) => (
                     <tr key={t.id} className="border-t border-slate-100 hover:bg-slate-50">
                       <td className="px-4 py-3 font-medium">#{t.orderId}</td>
                       <td className="px-4 py-3 text-slate-800">
@@ -232,24 +272,39 @@ export default function WarehousePage() {
                         <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${TASK_BADGE[t.status]}`}>{t.status.replace('_', ' ')}</span>
                       </td>
                       <td className="px-4 py-3">
-                        {t.status === 'PENDING' && (
-                          <button
-                            onClick={() => startMut.mutate({ id: t.id })}
-                            disabled={busy}
-                            className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                          >
-                            Start
-                          </button>
-                        )}
-                        {t.status === 'IN_PROGRESS' && (
-                          <button
-                            onClick={() => completeMut.mutate({ id: t.id })}
-                            disabled={busy}
-                            className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                          >
-                            Complete
-                          </button>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {t.status === 'PENDING' && (
+                            <button
+                              onClick={() => startMut.mutate({ id: t.id })}
+                              disabled={busy}
+                              className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                              Start
+                            </button>
+                          )}
+                          {t.status === 'IN_PROGRESS' && (
+                            <button
+                              onClick={() => completeMut.mutate({ id: t.id })}
+                              disabled={busy}
+                              className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              Complete
+                            </button>
+                          )}
+                          {canCancel && (t.status === 'PENDING' || t.status === 'IN_PROGRESS') && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Cancel task #${t.id} for order #${t.orderId}?`)) {
+                                  cancelMut.mutate({ id: t.id })
+                                }
+                              }}
+                              disabled={busy}
+                              className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))

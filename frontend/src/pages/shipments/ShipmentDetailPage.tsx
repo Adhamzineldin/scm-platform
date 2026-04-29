@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
+  advanceShipmentStatus,
   dispatchShipment,
   getShipment,
   type DispatchRequest,
@@ -81,6 +82,16 @@ export default function ShipmentDetailPage() {
     onError: () => toast.error('Dispatch failed'),
   })
 
+  const advanceMut = useMutation({
+    mutationFn: (status: string) => advanceShipmentStatus(Number(id), status),
+    onSuccess: (_, status) => {
+      toast.success(`Shipment marked as ${status.replace('_', ' ')}`)
+      qc.invalidateQueries({ queryKey: ['shipment', id] })
+      qc.invalidateQueries({ queryKey: ['shipments'] })
+    },
+    onError: () => toast.error('Status update failed'),
+  })
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16 text-slate-400">
@@ -135,6 +146,19 @@ export default function ShipmentDetailPage() {
           ← Back to shipments
         </Link>
       </div>
+
+      {/* PENDING call-to-action — shown to staff when shipment was just created manually */}
+      {canDispatch && data.status === 'PENDING' && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+          <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Shipment is pending dispatch</p>
+            <p className="mt-0.5 text-xs text-amber-700">Fill in the carrier details in the dispatch form below to ship this order.</p>
+          </div>
+        </div>
+      )}
 
       {/* Summary + Current Dispatch */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -338,6 +362,37 @@ export default function ShipmentDetailPage() {
             </button>
           </div>
         </form>
+      )}
+
+      {/* Manual status advancement — SHIPPED → IN_TRANSIT → DELIVERED */}
+      {canDispatch && (data.status === 'SHIPPED' || data.status === 'IN_TRANSIT') && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold text-slate-700">Advance Status</h2>
+          <div className="flex items-center gap-3">
+            {data.status === 'SHIPPED' && (
+              <button
+                onClick={() => advanceMut.mutate('IN_TRANSIT')}
+                disabled={advanceMut.isPending}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                Mark In Transit
+              </button>
+            )}
+            {data.status === 'IN_TRANSIT' && (
+              <button
+                onClick={() => advanceMut.mutate('DELIVERED')}
+                disabled={advanceMut.isPending}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                Mark Delivered
+              </button>
+            )}
+            <p className="text-xs text-slate-400">
+              {data.status === 'SHIPPED' && 'Confirm carrier has collected the package.'}
+              {data.status === 'IN_TRANSIT' && 'Confirm package has been delivered to the recipient.'}
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Status Timeline */}

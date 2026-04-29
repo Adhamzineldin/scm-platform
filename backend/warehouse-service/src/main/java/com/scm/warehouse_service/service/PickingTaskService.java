@@ -183,6 +183,19 @@ public class PickingTaskService {
         return toResponse(savedTask);
     }
 
+    @Transactional
+    public PickingTaskResponse cancelTask(Long taskId) {
+        PickingTask task = getTaskEntity(taskId);
+        if (task.getStatus() == TaskStatus.COMPLETED) {
+            throw new IllegalTaskStateException("Cannot cancel a completed task");
+        }
+        if (task.getStatus() == TaskStatus.CANCELLED) {
+            throw new IllegalTaskStateException("Task is already cancelled");
+        }
+        task.setStatus(TaskStatus.CANCELLED);
+        return toResponse(pickingTaskRepository.save(task));
+    }
+
     // ──────────────────────────── helpers ────────────────────────────
 
     private WarehouseZone resolveZone(String preferredCode, ZoneType fallbackType) {
@@ -231,7 +244,8 @@ public class PickingTaskService {
     }
 
     private void notifyOrderServiceIfOrderIsFullyPicked(Long orderId, String workerId) {
-        boolean hasOpenTasks = pickingTaskRepository.existsByOrderIdAndStatusNot(orderId, TaskStatus.COMPLETED);
+        boolean hasOpenTasks = pickingTaskRepository.existsByOrderIdAndStatusIn(
+                orderId, java.util.List.of(TaskStatus.PENDING, TaskStatus.IN_PROGRESS));
         if (hasOpenTasks) return;
 
         try {

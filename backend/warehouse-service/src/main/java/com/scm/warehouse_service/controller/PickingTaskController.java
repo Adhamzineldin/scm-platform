@@ -63,4 +63,10 @@ public class PickingTaskController {
     public PickingTaskResponse completeTask(@PathVariable Long taskId, @Valid @RequestBody TaskStatusUpdateRequest request) {
         return pickingTaskService.completeTask(taskId, request.getWorkerId());
     }
+
+    @PatchMapping("/tasks/{taskId}/cancel")
+    @ResponseStatus(HttpStatus.OK)
+    public PickingTaskResponse cancelTask(@PathVariable Long taskId) {
+        return pickingTaskService.cancelTask(taskId);
+    }
 }

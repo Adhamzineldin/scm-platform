@@ -97,3 +97,8 @@ export async function completePickingTask(taskId: number, workerId: string): Pro
   )
   return data
 }
+
+export async function cancelPickingTask(taskId: number): Promise<PickingTaskResponse> {
+  const { data } = await api.patch<PickingTaskResponse>(`/api/warehouse/tasks/${taskId}/cancel`)
+  return data
+}

@@ -102,6 +102,14 @@ public class OrderService {
         return paginationMapper.toPagedResponse(orderPage, orderMapper::toResponse);
     }
 
+    public PagedResponse<OrderResponse> getOrdersByStatus(String status, int page, int size) {
+        OrderStatus orderStatus = OrderStatus.valueOf(status.toUpperCase());
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        Page<Order> orderPage = orderRepository.findByStatus(orderStatus, pageable);
+
+        return paginationMapper.toPagedResponse(orderPage, orderMapper::toResponse);
+    }
+
     public PagedResponse<OrderResponse> getOrdersForUser(String userId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
         Page<Order> orderPage = orderRepository.findByUserId(userId, pageable);

@@ -10,4 +10,5 @@ public interface PickingTaskRepository extends JpaRepository<PickingTask, Long> 
     List<PickingTask> findByOrderIdOrderByIdAsc(Long orderId);
     List<PickingTask> findByStatusOrderByIdAsc(TaskStatus status);
     boolean existsByOrderIdAndStatusNot(Long orderId, TaskStatus status);
+    boolean existsByOrderIdAndStatusIn(Long orderId, java.util.List<TaskStatus> statuses);
 }
