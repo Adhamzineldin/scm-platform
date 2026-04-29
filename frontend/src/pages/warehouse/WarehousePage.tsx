@@ -18,6 +18,7 @@ import {
 import { listProducts } from '../../api/inventoryApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
 import { extractErrorMessage } from '../../api/axiosInstance.ts'
+import { displayUser, useUserNames } from '../../hooks/useUserNames.ts'
 
 const TASK_BADGE: Record<TaskStatus, string> = {
   PENDING:     'bg-amber-50 text-amber-700 border border-amber-200',
@@ -104,6 +105,9 @@ export default function WarehousePage() {
   // SKU → product name lookup (so workers see what they're picking, not just a SKU code)
   const productBySku: Record<string, string> = {}
   for (const p of (productsQuery.data ?? [])) productBySku[p.sku] = p.name
+
+  // Worker ID → username lookup
+  const workerNames = useUserNames(tasks.map((t) => t.assignedWorkerId))
 
   const handleAddLoc = (e: FormEvent) => {
     e.preventDefault()
@@ -223,7 +227,7 @@ export default function WarehousePage() {
                       <td className="px-4 py-3">{t.quantity}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">{t.sourceZoneCode} / {t.sourceShelfCode}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">{t.destinationZoneCode} / {t.destinationShelfCode}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500">{t.assignedWorkerId ?? '—'}</td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{displayUser(t.assignedWorkerId, workerNames)}</td>
                       <td className="px-4 py-3">
                         <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${TASK_BADGE[t.status]}`}>{t.status.replace('_', ' ')}</span>
                       </td>
