@@ -29,10 +29,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -72,12 +73,15 @@ public class OrderService {
                 savedOrder.getId(), null, OrderStatus.VALIDATED.name(),
                 savedOrder.getCreatedAt(), userId, "Order placed"));
 
-        // Kick off side-effects independently — a failure in one MUST NOT block the other.
-        CompletableFuture.runAsync(() -> {
-            try { orderEventProducer.sendOrderCreatedEvent(response); }
-            catch (Exception ex) { log.error("Kafka publish failed for order {}: {}", response.getId(), ex.getMessage()); }
+        // Run Kafka publish and warehouse task creation after the transaction commits.
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try { orderEventProducer.sendOrderCreatedEvent(response); }
+                catch (Exception ex) { log.error("Kafka publish failed for order {}: {}", response.getId(), ex.getMessage()); }
+                createWarehouseTasks(response);
+            }
         });
-        CompletableFuture.runAsync(() -> createWarehouseTasks(response));
 
         return response;
     }
@@ -136,12 +140,15 @@ public class OrderService {
 
         OrderResponse response = orderMapper.toResponse(order);
 
-        // Send Kafka events off the HTTP thread — don't block the caller
-        CompletableFuture.runAsync(() -> {
-            orderEventProducer.sendOrderStatusChangedEvent(orderId, order.getUserId(), previousStatus, OrderStatus.PICKED.name());
-            orderEventProducer.sendOrderReadyForDispatchEvent(
-                    new OrderReadyForDispatchEvent(order.getId(), order.getUserId(), order.getShippingAddress())
-            );
+        // Send Kafka events after the transaction commits so the updated status is visible to consumers.
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                orderEventProducer.sendOrderStatusChangedEvent(orderId, order.getUserId(), previousStatus, OrderStatus.PICKED.name());
+                orderEventProducer.sendOrderReadyForDispatchEvent(
+                        new OrderReadyForDispatchEvent(order.getId(), order.getUserId(), order.getShippingAddress())
+                );
+            }
         });
 
         return response;

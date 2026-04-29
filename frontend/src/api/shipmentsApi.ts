@@ -100,3 +100,8 @@ export async function getShipmentByOrder(orderId: number | string): Promise<Ship
     return null
   }
 }
+
+export async function createShipment(orderId: number): Promise<ShipmentDetailResponse> {
+  const { data } = await api.post<ShipmentDetailResponse>('/api/shipments', { orderId })
+  return data
+}
