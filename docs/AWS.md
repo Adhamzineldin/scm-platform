@@ -736,6 +736,123 @@ aws ecs update-service --cluster scm-cluster --service $SVC --force-new-deployme
 
 ---
 
+## Autoscaling
+
+Three worker services — `order-service`, `shipment-service`, `notification-service` — have Application Auto Scaling configured with two independent policies each.
+
+### Why these three services?
+
+These are the Kafka consumer workers. When order volume spikes, Kafka messages accumulate faster than one task can process them — CPU rises and consumer lag grows. Scaling these services horizontally reduces lag and keeps order→shipment→notification latency low. The gateway, auth, and warehouse services handle synchronous HTTP requests and benefit less from task-level horizontal scaling.
+
+### Policies per service
+
+| Service | Policy | Trigger | Scale-out | Scale-in |
+|---|---|---|---|---|
+| `order-service` | CPU target | CPU > 60% | +tasks after 60s cooldown | -tasks after 180s |
+| `order-service` | Kafka lag | `ConsumerLag` > 200 msgs | +tasks after 30s cooldown | -tasks after 180s |
+| `shipment-service` | CPU target | CPU > 60% | +tasks after 60s | -tasks after 180s |
+| `shipment-service` | Kafka lag | `ConsumerLag` > 100 msgs | +tasks after 30s | -tasks after 180s |
+| `notification-service` | CPU target | CPU > 55% | +tasks after 60s | -tasks after 180s |
+| `notification-service` | Kafka lag | `ConsumerLag` > 150 msgs | +tasks after 30s | -tasks after 180s |
+
+All services: **min 1 task, max 10 tasks**.
+
+### Why shorter scale-out cooldown for Kafka lag (30s vs 60s)?
+
+CPU is a lagging indicator — it rises *after* tasks are already saturated. Consumer lag is a leading indicator — it rises *before* CPU does, as messages queue up. Reacting faster to lag (30s) prevents a backlog from building. Scale-in is intentionally slow (180s) for both policies to avoid thrashing.
+
+### Why target tracking instead of step scaling?
+
+Target tracking automatically calculates how many tasks to add/remove to reach the target value. You don't have to hand-tune step thresholds. AWS Application Auto Scaling handles the math.
+
+### The Kafka lag metric (`SCM/Workers:ConsumerLag`)
+
+This is a **custom CloudWatch metric** in the namespace `SCM/Workers`. It must be published by something that reads Kafka consumer group offsets and pushes the lag value. Options:
+
+1. **A Spring Boot actuator metric + CloudWatch agent** — expose consumer lag via Micrometer and push to CloudWatch
+2. **A Kafka exporter sidecar** — run `kafka-consumer-groups.sh` periodically and `aws cloudwatch put-metric-data`
+3. **CloudWatch Container Insights + Kafka plugin** — not natively supported for self-managed Kafka
+
+Until the metric is published, the Kafka lag policies exist but never trigger (no data = no alarm). The CPU policies are fully active and will scale immediately on load.
+
+### Commands run
+
+```bash
+# Register scalable targets
+for svc in order-service shipment-service notification-service; do
+  aws application-autoscaling register-scalable-target \
+    --service-namespace ecs \
+    --scalable-dimension ecs:service:DesiredCount \
+    --resource-id "service/scm-cluster/${svc}" \
+    --min-capacity 1 --max-capacity 10
+done
+
+# CPU policies (predefined ECS metric — works immediately)
+aws application-autoscaling put-scaling-policy \
+  --policy-name order-service-cpu-target \
+  --service-namespace ecs --scalable-dimension ecs:service:DesiredCount \
+  --resource-id service/scm-cluster/order-service \
+  --policy-type TargetTrackingScaling \
+  --target-tracking-scaling-policy-configuration '{
+    "TargetValue": 60.0,
+    "PredefinedMetricSpecification": {"PredefinedMetricType": "ECSServiceAverageCPUUtilization"},
+    "ScaleOutCooldown": 60, "ScaleInCooldown": 180
+  }'
+# (repeat for shipment @ 60%, notification @ 55%)
+
+# Kafka lag policies (custom metric — activates once publisher is running)
+aws application-autoscaling put-scaling-policy \
+  --policy-name order-service-kafka-lag-target \
+  --service-namespace ecs --scalable-dimension ecs:service:DesiredCount \
+  --resource-id service/scm-cluster/order-service \
+  --policy-type TargetTrackingScaling \
+  --target-tracking-scaling-policy-configuration '{
+    "TargetValue": 200.0,
+    "CustomizedMetricSpecification": {
+      "Namespace": "SCM/Workers", "MetricName": "ConsumerLag",
+      "Statistic": "Average",
+      "Dimensions": [{"Name": "ServiceName", "Value": "order-service"}]
+    },
+    "ScaleOutCooldown": 30, "ScaleInCooldown": 180
+  }'
+# (repeat for shipment @ 100, notification @ 150)
+```
+
+---
+
+## CloudWatch Dashboard (`SCM-Platform`)
+
+**Direct link:** `https://eu-north-1.console.aws.amazon.com/cloudwatch/home?region=eu-north-1#dashboards:name=SCM-Platform`
+
+Created via `aws cloudwatch put-dashboard --dashboard-name SCM-Platform`.
+
+### What's on the dashboard
+
+| Section | Metrics shown |
+|---|---|
+| **ALB Traffic** | Request count (total / per target group), p50 + p99 response time, 4xx + 5xx error counts |
+| **RDS Postgres** | CPU %, active connections, read/write IOPS, free storage GB |
+| **Autoscaling Workers** | CPU utilization + running task count for order, shipment, notification |
+| **Kafka Consumer Lag** | `SCM/Workers:ConsumerLag` per service with horizontal annotations at scale-out thresholds; running task count overlay |
+| **All ECS Services** | CPU + memory utilization for all 11 services |
+
+### Why CloudWatch over Grafana/Prometheus?
+
+On ECS Fargate there is no persistent disk and no host-level agent. Prometheus scraping requires a sidecar or a push-gateway, and Grafana needs persistent storage (EFS). CloudWatch Container Insights is built into ECS — enabling it (done at cluster creation with `containerInsights=enabled`) automatically publishes CPU, memory, and task count metrics for every Fargate service with zero configuration. For a demo, it's the path of least resistance and the TA can view it directly in the AWS console with their credentials.
+
+### Re-creating the dashboard (if deleted)
+
+The dashboard JSON is generated by `python3` and pushed via:
+```bash
+aws cloudwatch put-dashboard \
+  --dashboard-name SCM-Platform \
+  --dashboard-body file:///tmp/scm-dashboard.json
+```
+
+To regenerate, re-run the Python script in this session history or rebuild from the widget definitions above.
+
+---
+
 ## Custom domain via Cloudflare (`scm.maayn.com`)
 
 ### Why a custom domain?

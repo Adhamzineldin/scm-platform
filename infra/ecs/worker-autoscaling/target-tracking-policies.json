@@ -1,6 +1,6 @@
 {
   "clusterName": "scm-cluster",
-  "region": "us-east-1",
+  "region": "eu-north-1",
   "services": [
     {
       "serviceName": "order-service",
