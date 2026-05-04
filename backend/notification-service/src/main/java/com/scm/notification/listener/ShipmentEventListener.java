@@ -40,8 +40,8 @@ public class ShipmentEventListener {
     public void handleShipmentDispatched(Map<String, Object> eventMap) {
         ShipmentDispatchedEvent event = objectMapper.convertValue(eventMap, ShipmentDispatchedEvent.class);
 
-        log.info("Received ShipmentDispatchedEvent for Order #{} (shipment={}, carrier={}, tracking={})",
-                event.orderId(), event.shipmentId(), event.carrier(), event.trackingNumber());
+        log.info("Received ShipmentDispatchedEvent for Order #{} (shipment={}, status={}, carrier={}, tracking={})",
+                event.orderId(), event.shipmentId(), event.status(), event.carrier(), event.trackingNumber());
         notificationDispatcher.dispatchShipmentConfirmation(event);
     }
 

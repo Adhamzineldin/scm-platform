@@ -18,7 +18,7 @@ describe('PdfService', () => {
     userId: 'user-42',
     shippingAddress: '123 Main St, Springfield, IL 62701',
     status: 'CREATED',
-    idempotencyKey: 'idem-key-abc-123',
+    referenceNumber: 'ORD-1001',
     createdAt: '2026-04-17T10:30:00',
     items: [
       { sku: 'SKU-001', quantity: 2, unitPrice: 29.99 },
@@ -28,6 +28,11 @@ describe('PdfService', () => {
 
   const capturePdfStream = (order: OrderReceiptDto): Promise<Buffer> =>
     service.generateOrderReceipt(order);
+
+  const estimatePageCount = (buffer: Buffer): number => {
+    const matches = buffer.toString('latin1').match(/\/Type\s*\/Page\b/g);
+    return matches?.length ?? 0;
+  };
 
   it('should be defined', () => {
     expect(service).toBeDefined();
@@ -49,6 +54,14 @@ describe('PdfService', () => {
 
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.toString('ascii', 0, 5)).toBe('%PDF-');
+    expect(estimatePageCount(buffer)).toBe(1);
+  });
+
+  it('should not generate extra blank pages for a small receipt', async () => {
+    const buffer = await capturePdfStream(buildValidOrder());
+
+    expect(buffer).toBeInstanceOf(Buffer);
+    expect(estimatePageCount(buffer)).toBe(1);
   });
 
   it('should generate PDF when items have no prices', async () => {

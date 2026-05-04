@@ -34,12 +34,20 @@ public record InAppNotification(
 
     public static InAppNotification shipmentDispatched(Long orderId, String userId,
                                                        String trackingNumber, String carrier) {
+        return shipmentStatusUpdated(orderId, userId, "SHIPPED", trackingNumber, carrier);
+    }
+
+    public static InAppNotification shipmentStatusUpdated(Long orderId, String userId,
+                                                          String status, String trackingNumber, String carrier) {
+        boolean delivered = "DELIVERED".equalsIgnoreCase(status);
         return new InAppNotification(
-                "SHIPMENT_DISPATCHED",
+                delivered ? "SHIPMENT_DELIVERED" : "SHIPMENT_DISPATCHED",
                 orderId,
                 userId,
-                "Order #" + orderId + " has shipped",
-                "Carrier " + carrier + " — tracking #" + trackingNumber,
+                delivered ? "Order #" + orderId + " has been delivered" : "Order #" + orderId + " has shipped",
+                delivered
+                        ? "Your package was delivered. Tracking #" + trackingNumber
+                        : "Carrier " + carrier + " — tracking #" + trackingNumber,
                 Instant.now()
         );
     }

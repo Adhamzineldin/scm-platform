@@ -30,8 +30,7 @@
       "Bash(xargs cat *)",
       "Bash(winpty docker *)",
       "PowerShell(docker exec scm-platform-kafka-1 *)",
-      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(b['topic'],b['partition'],'offset='+str\\(b['endOffset']\\)\\) for b in [b for p in data['brokers'] for lp in p['logDirs'] for b in lp.get\\('partitions',[]\\)]]\")",
-      "Bash(aws sts get-caller-identity *)"
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(b['topic'],b['partition'],'offset='+str\\(b['endOffset']\\)\\) for b in [b for p in data['brokers'] for lp in p['logDirs'] for b in lp.get\\('partitions',[]\\)]]\")"
     ]
   }
 }

@@ -1,6 +1,7 @@
 package com.scm.shipment_service.service;
 
 import com.scm.shipment_service.dto.DispatchRequest;
+import com.scm.shipment_service.dto.ShipmentDispatchedEvent;
 import com.scm.shipment_service.entity.DispatchRecord;
 import com.scm.shipment_service.entity.Shipment;
 import com.scm.shipment_service.entity.ShipmentHistory;
@@ -9,27 +10,36 @@ import com.scm.shipment_service.model.ShipmentStatus;
 import com.scm.shipment_service.repository.DispatchRecordRepository;
 import com.scm.shipment_service.repository.ShipmentHistoryRepository;
 import com.scm.shipment_service.repository.ShipmentRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@Slf4j
 public class ShipmentService {
+
+    private static final String SHIPMENT_TOPIC = "shipment-dispatched-topic";
 
     private final ShipmentRepository repo;
     private final CarrierService carrier;
     private final DispatchRecordRepository dispatchRepo;
     private final ShipmentHistoryRepository historyRepo;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     public ShipmentService(ShipmentRepository repo, CarrierService carrier,
                            DispatchRecordRepository dispatchRepo,
-                           ShipmentHistoryRepository historyRepo) {
+                           ShipmentHistoryRepository historyRepo,
+                           KafkaTemplate<String, Object> kafkaTemplate) {
         this.repo = repo;
         this.carrier = carrier;
         this.dispatchRepo = dispatchRepo;
         this.historyRepo = historyRepo;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     public Shipment create(Long orderId) {
@@ -68,6 +78,7 @@ public class ShipmentService {
      */
     @Transactional
     public Shipment autoDispatch(Shipment s) {
+        ShipmentStatus previous = s.getStatus();
         var res = carrier.send(s);
         s.setTrackingNumber(res.get("trackingNumber"));
         s.setCarrier(res.get("carrier"));
@@ -84,8 +95,9 @@ public class ShipmentService {
         dispatch.setNotes("Auto-dispatched from order-ready-for-dispatch event");
         dispatchRepo.save(dispatch);
 
-        recordHistory(saved, ShipmentStatus.PENDING, ShipmentStatus.SHIPPED, "SYSTEM-KAFKA",
+        recordHistory(saved, previous, ShipmentStatus.SHIPPED, "SYSTEM-KAFKA",
                 "Auto-dispatched to carrier: " + res.get("carrier"));
+        publishShipmentStatusEvent(saved, ShipmentStatus.SHIPPED);
         return saved;
     }
 
@@ -93,6 +105,8 @@ public class ShipmentService {
     public Shipment dispatch(Long id, DispatchRequest request) {
         Shipment s = repo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Shipment not found"));
+
+        ShipmentStatus previous = s.getStatus();
 
         var res = carrier.send(s);
         s.setTrackingNumber(res.get("trackingNumber"));
@@ -112,8 +126,10 @@ public class ShipmentService {
         dispatchRepo.save(dispatch);
 
         // Record history
-        recordHistory(saved, ShipmentStatus.PENDING, ShipmentStatus.SHIPPED, "SYSTEM",
+        recordHistory(saved, previous, ShipmentStatus.SHIPPED, "SYSTEM",
                 "Shipment dispatched to carrier: " + res.get("carrier"));
+
+        publishShipmentStatusEvent(saved, ShipmentStatus.SHIPPED);
 
         return saved;
     }
@@ -139,6 +155,8 @@ public class ShipmentService {
         String description = note != null && !note.isBlank() ? note : "Manual status update";
         recordHistory(saved, current, newStatus, changedBy, description);
 
+        publishShipmentStatusEvent(saved, newStatus);
+
         return saved;
     }
 
@@ -147,22 +165,44 @@ public class ShipmentService {
                 .orElseThrow(() -> new NotFoundException("Shipment not found"));
 
         ShipmentStatus oldStatus = s.getStatus();
-        ShipmentStatus newStatus = ShipmentStatus.valueOf(status);
+        ShipmentStatus newStatus = parseStatus(status);
+
+        if (oldStatus == newStatus) {
+            return;
+        }
 
         s.setStatus(newStatus);
-        repo.save(s);
+        Shipment saved = repo.save(s);
 
         // Record history
         recordHistory(s, oldStatus, newStatus, "WEBHOOK", "Status updated via webhook");
+
+        publishShipmentStatusEvent(saved, newStatus);
+    }
+
+    public ShipmentStatus parseStatus(String rawStatus) {
+        if (rawStatus == null || rawStatus.isBlank()) {
+            throw new IllegalArgumentException("Shipment status is required");
+        }
+
+        String normalized = rawStatus.trim().toUpperCase();
+        if ("DISPATCHED".equals(normalized)) {
+            normalized = "SHIPPED";
+        }
+
+        try {
+            return ShipmentStatus.valueOf(normalized);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Unsupported shipment status: " + rawStatus);
+        }
     }
 
     /**
      * Get shipment details with dispatch records and history.
      */
     public Shipment getDetails(Long id) {
-        Shipment s = repo.findById(id)
+        return repo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Shipment not found"));
-        return s;
     }
 
     /**
@@ -200,5 +240,32 @@ public class ShipmentService {
         history.setChangedBy(changedBy);
         history.setDescription(description);
         historyRepo.save(history);
+    }
+
+    private void publishShipmentStatusEvent(Shipment shipment, ShipmentStatus newStatus) {
+        if (newStatus != ShipmentStatus.SHIPPED && newStatus != ShipmentStatus.DELIVERED) {
+            return;
+        }
+
+        String changedAt = Instant.now().toString();
+        ShipmentDispatchedEvent payload = new ShipmentDispatchedEvent(
+                shipment.getId(),
+                shipment.getOrderId(),
+                shipment.getUserId(),
+                shipment.getTrackingNumber(),
+                shipment.getCarrier(),
+                shipment.getShippingAddress(),
+                newStatus.name(),
+                changedAt,
+                newStatus == ShipmentStatus.SHIPPED ? changedAt : null
+        );
+
+        try {
+            kafkaTemplate.send(SHIPMENT_TOPIC, String.valueOf(shipment.getId()), payload);
+            log.info("Published shipment status event for shipment #{}: {}", shipment.getId(), newStatus);
+        } catch (Exception ex) {
+            log.error("Failed to publish shipment status event for shipment #{}: {}",
+                    shipment.getId(), ex.getMessage(), ex);
+        }
     }
 }

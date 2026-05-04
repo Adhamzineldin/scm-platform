@@ -14,6 +14,7 @@ import { displayUser, useUserNames } from '../../hooks/useUserNames.ts'
 const STATUS_BADGE: Record<OrderStatus, string> = {
   VALIDATED: 'bg-indigo-50 text-indigo-700',
   PICKED: 'bg-sky-50 text-sky-700',
+  DISPATCHED: 'bg-amber-50 text-amber-700',
   SHIPPED: 'bg-amber-50 text-amber-700',
   DELIVERED: 'bg-emerald-50 text-emerald-700',
   CANCELLED: 'bg-red-50 text-red-700',

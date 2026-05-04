@@ -15,9 +15,9 @@ export class PdfService {
 
       try {
         this.buildHeader(doc, order);
-        this.buildOrderInfo(doc, order);
-        this.buildItemsTable(doc, order.items);
-        this.buildTotals(doc, order.items);
+        const infoBottomY = this.buildOrderInfo(doc, order);
+        const tableBottomY = this.buildItemsTable(doc, order.items, infoBottomY + 20);
+        this.buildTotals(doc, order.items, tableBottomY + 20);
         this.buildFooter(doc);
         doc.end();
       } catch (err) {
@@ -71,7 +71,7 @@ export class PdfService {
   private buildOrderInfo(
     doc: PDFKit.PDFDocument,
     order: OrderReceiptDto,
-  ): void {
+  ): number {
     const startY = 140;
 
     doc
@@ -114,27 +114,29 @@ export class PdfService {
       .strokeColor('#cccccc')
       .lineWidth(0.5)
       .stroke();
+
+    return y + 15;
   }
 
   private buildItemsTable(
     doc: PDFKit.PDFDocument,
     items: OrderItemDto[],
-  ): void {
-    const tableTop = 280;
-
-    doc.rect(50, tableTop - 5, 495, 25).fillColor('#1a1a2e').fill();
-
-    doc.fontSize(10).font('Helvetica-Bold').fillColor('#ffffff');
-    doc.text('#', 60, tableTop, { width: 30 });
-    doc.text('SKU', 100, tableTop, { width: 180 });
-    doc.text('Quantity', 290, tableTop, { width: 80, align: 'center' });
-    doc.text('Unit Price', 380, tableTop, { width: 80, align: 'right' });
-    doc.text('Total', 470, tableTop, { width: 70, align: 'right' });
+    tableTop: number,
+  ): number {
+    this.drawTableHeader(doc, tableTop);
 
     doc.font('Helvetica').fillColor('#333333');
     let y = tableTop + 30;
+    const rowHeight = 25;
+    const bottomSafeY = doc.page.height - doc.page.margins.bottom - 100;
 
     items.forEach((item, index) => {
+      if (y + rowHeight > bottomSafeY) {
+        doc.addPage();
+        this.drawTableHeader(doc, 70);
+        y = 100;
+      }
+
       const unitPrice = item.unitPrice ?? 0;
       const lineTotal = unitPrice * item.quantity;
 
@@ -155,7 +157,7 @@ export class PdfService {
         align: 'right',
       });
 
-      y += 25;
+      y += rowHeight;
     });
 
     doc
@@ -164,40 +166,73 @@ export class PdfService {
       .strokeColor('#1a1a2e')
       .lineWidth(1)
       .stroke();
+
+    return y + 5;
   }
 
-  private buildTotals(doc: PDFKit.PDFDocument, items: OrderItemDto[]): void {
+  private drawTableHeader(doc: PDFKit.PDFDocument, tableTop: number): void {
+    doc.rect(50, tableTop - 5, 495, 25).fillColor('#1a1a2e').fill();
+
+    doc.fontSize(10).font('Helvetica-Bold').fillColor('#ffffff');
+    doc.text('#', 60, tableTop, { width: 30 });
+    doc.text('SKU', 100, tableTop, { width: 180 });
+    doc.text('Quantity', 290, tableTop, { width: 80, align: 'center' });
+    doc.text('Unit Price', 380, tableTop, { width: 80, align: 'right' });
+    doc.text('Total', 470, tableTop, { width: 70, align: 'right' });
+  }
+
+  private buildTotals(
+    doc: PDFKit.PDFDocument,
+    items: OrderItemDto[],
+    startY: number,
+  ): void {
     const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
     const subtotal = items.reduce(
       (sum, item) => sum + (item.unitPrice ?? 0) * item.quantity,
       0,
     );
 
-    const y = 280 + items.length * 25 + 40;
+    const y = startY;
+    const totalsHeight = subtotal > 0 ? 70 : 20;
+    const bottomSafeY = doc.page.height - doc.page.margins.bottom - 90;
+
+    if (y + totalsHeight > bottomSafeY) {
+      doc.addPage();
+    }
+
+    const totalsY = y + totalsHeight > bottomSafeY ? 70 : y;
 
     doc
       .fontSize(10)
       .font('Helvetica')
       .fillColor('#555555')
-      .text(`Total Items: ${totalItems}`, 350, y, { align: 'right' });
+      .text(`Total Items: ${totalItems}`, 350, totalsY, { align: 'right', width: 195 });
 
     if (subtotal > 0) {
-      doc.text(`Subtotal: $${subtotal.toFixed(2)}`, 350, y + 20, {
+      doc.text(`Subtotal: $${subtotal.toFixed(2)}`, 350, totalsY + 20, {
         align: 'right',
+        width: 195,
       });
 
       doc
         .fontSize(14)
         .font('Helvetica-Bold')
         .fillColor('#1a1a2e')
-        .text(`Total: $${subtotal.toFixed(2)}`, 350, y + 45, {
+        .text(`Total: $${subtotal.toFixed(2)}`, 350, totalsY + 45, {
           align: 'right',
+          width: 195,
         });
     }
   }
 
   private buildFooter(doc: PDFKit.PDFDocument): void {
+    const minFooterTop = doc.page.height - 80;
+    if (doc.y > minFooterTop - 20) {
+      doc.addPage();
+    }
+
     const pageHeight = doc.page.height;
+    const footerStartY = pageHeight - doc.page.margins.bottom - 42;
 
     doc
       .moveTo(50, pageHeight - 80)
@@ -213,19 +248,19 @@ export class PdfService {
       .text(
         'This is a system-generated receipt from SCM Platform.',
         50,
-        pageHeight - 65,
+        footerStartY,
         { align: 'center', width: 495 },
       )
       .text(
         'For questions or concerns, contact support@scm-platform.com',
         50,
-        pageHeight - 52,
+        footerStartY + 12,
         { align: 'center', width: 495 },
       )
       .text(
         `Generated on ${new Date().toISOString()}`,
         50,
-        pageHeight - 39,
+        footerStartY + 24,
         { align: 'center', width: 495 },
       );
   }

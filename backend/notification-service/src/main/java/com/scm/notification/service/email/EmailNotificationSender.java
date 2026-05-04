@@ -109,7 +109,11 @@ public class EmailNotificationSender implements NotificationSender {
 
             helper.setFrom(fromAddress);
             helper.setTo(toAddress);
-            helper.setSubject("Order #" + orderId + " has shipped — " + context.event().carrier());
+            String status = context.event().status() != null ? context.event().status() : "SHIPPED";
+            String subject = "DELIVERED".equalsIgnoreCase(status)
+                    ? "Order #" + orderId + " has been delivered"
+                    : "Order #" + orderId + " has shipped — " + context.event().carrier();
+            helper.setSubject(subject);
             helper.setText(contentBuilder.buildShipmentDispatched(context), true);
 
             mailSender.send(message);

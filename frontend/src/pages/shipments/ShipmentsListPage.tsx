@@ -10,6 +10,7 @@ import { useAuthStore } from '../../store/authStore.ts'
 const STATUS_STYLES: Record<string, string> = {
   CREATED:     'bg-slate-100 text-slate-700 border-slate-200',
   PENDING:     'bg-amber-50 text-amber-700 border-amber-200',
+  SHIPPED:     'bg-indigo-50 text-indigo-700 border-indigo-200',
   DISPATCHED:  'bg-indigo-50 text-indigo-700 border-indigo-200',
   IN_TRANSIT:  'bg-blue-50 text-blue-700 border-blue-200',
   OUT_FOR_DELIVERY: 'bg-violet-50 text-violet-700 border-violet-200',

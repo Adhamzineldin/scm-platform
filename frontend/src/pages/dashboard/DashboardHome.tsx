@@ -22,6 +22,7 @@ import { useAuthStore } from '../../store/authStore.ts'
 const STATUS_COLORS: Record<OrderStatus, string> = {
   VALIDATED: '#6366f1',
   PICKED: '#0ea5e9',
+  DISPATCHED: '#f59e0b',
   SHIPPED: '#f59e0b',
   DELIVERED: '#10b981',
   CANCELLED: '#ef4444',

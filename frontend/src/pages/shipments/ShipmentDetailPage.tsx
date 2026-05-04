@@ -16,6 +16,7 @@ import { displayUser, useUserNames } from '../../hooks/useUserNames.ts'
 const STATUS_STYLES: Record<string, { badge: string; dot: string }> = {
   CREATED:          { badge: 'bg-slate-100 text-slate-700 border-slate-200',    dot: 'bg-slate-400' },
   PENDING:          { badge: 'bg-amber-50 text-amber-700 border-amber-200',     dot: 'bg-amber-400' },
+  SHIPPED:          { badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',  dot: 'bg-indigo-500' },
   DISPATCHED:       { badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',  dot: 'bg-indigo-500' },
   IN_TRANSIT:       { badge: 'bg-blue-50 text-blue-700 border-blue-200',        dot: 'bg-blue-500' },
   OUT_FOR_DELIVERY: { badge: 'bg-violet-50 text-violet-700 border-violet-200',  dot: 'bg-violet-500' },

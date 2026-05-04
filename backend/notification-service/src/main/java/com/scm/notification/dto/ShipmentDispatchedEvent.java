@@ -11,6 +11,8 @@ public record ShipmentDispatchedEvent(
         String trackingNumber,
         String carrier,
         String shippingAddress,
+        String status,
+        String statusChangedAt,
         String dispatchedAt
 ) {
 }

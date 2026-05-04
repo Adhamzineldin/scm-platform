@@ -21,6 +21,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 const BADGE: Record<string, string> = {
   VALIDATED: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
   PICKED:    'bg-sky-50 text-sky-700 border border-sky-200',
+  DISPATCHED: 'bg-amber-50 text-amber-700 border border-amber-200',
   SHIPPED:   'bg-amber-50 text-amber-700 border border-amber-200',
   DELIVERED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
   CANCELLED: 'bg-red-50 text-red-700 border border-red-200',
@@ -92,13 +93,28 @@ export default function OrderDetailPage() {
 
   const ref = data.referenceNumber ?? `#${data.id}`
   const total = data.items.reduce((s, i) => s + Number(i.unitPrice) * i.quantity, 0)
-  const isCancelled = data.status === 'CANCELLED'
-  const currentIdx = isCancelled ? -1 : ALL_STATUSES.indexOf(data.status as typeof ALL_STATUSES[number])
+  const baseStatus = data.status === 'DISPATCHED' ? 'SHIPPED' : data.status
+  const effectiveStatus = shipment?.status === 'DELIVERED'
+    ? 'DELIVERED'
+    : shipment?.status === 'SHIPPED' || shipment?.status === 'IN_TRANSIT'
+      ? 'SHIPPED'
+      : baseStatus
+  const isCancelled = effectiveStatus === 'CANCELLED'
+  const currentIdx = isCancelled ? -1 : ALL_STATUSES.indexOf(effectiveStatus as typeof ALL_STATUSES[number])
 
   // Build a map of status → history entry for the timeline
   const historyByStatus: Record<string, { changedAt: string; changedBy: string | null }> = {}
   for (const h of history) {
-    historyByStatus[h.newStatus] = { changedAt: h.changedAt, changedBy: h.changedBy }
+    const statusKey = h.newStatus === 'DISPATCHED' ? 'SHIPPED' : h.newStatus
+    historyByStatus[statusKey] = { changedAt: h.changedAt, changedBy: h.changedBy }
+  }
+  for (const h of shipment?.history ?? []) {
+    if (h.newStatus === 'SHIPPED' || h.newStatus === 'IN_TRANSIT' || h.newStatus === 'DELIVERED') {
+      const statusKey = h.newStatus === 'IN_TRANSIT' ? 'SHIPPED' : h.newStatus
+      if (!historyByStatus[statusKey]) {
+        historyByStatus[statusKey] = { changedAt: h.changedAt, changedBy: h.changedBy }
+      }
+    }
   }
 
   return (
@@ -108,8 +124,8 @@ export default function OrderDetailPage() {
         <div>
           <p className="text-xs font-mono text-slate-400 uppercase tracking-wide">Order</p>
           <h1 className="text-2xl font-semibold text-slate-900">{ref}</h1>
-          <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${BADGE[data.status] ?? 'bg-slate-100 text-slate-700'}`}>
-            {data.status}
+          <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${BADGE[effectiveStatus] ?? 'bg-slate-100 text-slate-700'}`}>
+            {effectiveStatus}
           </span>
         </div>
         <div className="flex items-center gap-3">

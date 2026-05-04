@@ -18,6 +18,8 @@ public class ShipmentDispatchedEvent {
     private String trackingNumber;
     private String carrier;
     private String shippingAddress;
+    private String status;
+    private String statusChangedAt;
     private String dispatchedAt;
 }
 

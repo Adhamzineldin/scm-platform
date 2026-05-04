@@ -3,6 +3,7 @@ import api from './axiosInstance.ts'
 export type OrderStatus =
   | 'VALIDATED'
   | 'PICKED'
+  | 'DISPATCHED'
   | 'SHIPPED'
   | 'DELIVERED'
   | 'CANCELLED'

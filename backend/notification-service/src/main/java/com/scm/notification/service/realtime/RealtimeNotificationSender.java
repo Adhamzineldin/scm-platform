@@ -49,14 +49,16 @@ public class RealtimeNotificationSender implements NotificationSender {
     @Override
     public void sendShipmentDispatched(ShipmentDispatchedContext context) {
         String userId = context.user().userId();
-        InAppNotification payload = InAppNotification.shipmentDispatched(
+        String status = context.event().status() != null ? context.event().status() : "SHIPPED";
+        InAppNotification payload = InAppNotification.shipmentStatusUpdated(
                 context.event().orderId(),
                 userId,
+                status,
                 context.event().trackingNumber(),
                 context.event().carrier()
         );
-        log.info("Pushing realtime SHIPMENT_DISPATCHED for Order #{} to userId={} (tracking={})",
-                context.event().orderId(), userId, context.event().trackingNumber());
+        log.info("Pushing realtime shipment status {} for Order #{} to userId={} (tracking={})",
+                status, context.event().orderId(), userId, context.event().trackingNumber());
         registry.publish(userId, payload);
     }
 }

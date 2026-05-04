@@ -2,7 +2,6 @@ package com.scm.shipment_service.listener;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scm.shipment_service.dto.OrderReadyForDispatchEvent;
-import com.scm.shipment_service.dto.ShipmentDispatchedEvent;
 import com.scm.shipment_service.entity.Shipment;
 import com.scm.shipment_service.service.ShipmentService;
 import lombok.RequiredArgsConstructor;
@@ -10,19 +9,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.Map;
 
 /**
  * Closes the order workflow loop:
  * Consumes {@code order-ready-for-dispatch-topic} from order-service, auto-creates and
- * dispatches a shipment, then publishes {@code shipment-dispatched-topic} for
- * notification-service to email the customer.
+ * dispatches a shipment. ShipmentService publishes shipment status notifications.
  */
 @Component
 @RequiredArgsConstructor
@@ -30,10 +26,7 @@ import java.util.Map;
 public class ShipmentEventListener {
 
     private static final String INBOUND_TOPIC = "order-ready-for-dispatch-topic";
-    private static final String OUTBOUND_TOPIC = "shipment-dispatched-topic";
-
     private final ShipmentService shipmentService;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
     @RetryableTopic(attempts = "4")
@@ -47,20 +40,7 @@ public class ShipmentEventListener {
                 event.getUserId(),
                 event.getShippingAddress()
         );
-        Shipment dispatched = shipmentService.autoDispatch(created);
-
-        ShipmentDispatchedEvent payload = new ShipmentDispatchedEvent(
-                dispatched.getId(),
-                dispatched.getOrderId(),
-                dispatched.getUserId(),
-                dispatched.getTrackingNumber(),
-                dispatched.getCarrier(),
-                dispatched.getShippingAddress(),
-                Instant.now().toString()
-        );
-        kafkaTemplate.send(OUTBOUND_TOPIC, String.valueOf(dispatched.getId()), payload);
-        log.info("Published ShipmentDispatchedEvent for shipment #{} (carrier={}, tracking={})",
-                dispatched.getId(), dispatched.getCarrier(), dispatched.getTrackingNumber());
+        shipmentService.autoDispatch(created);
     }
 
     @DltHandler

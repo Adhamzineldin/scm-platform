@@ -44,6 +44,8 @@ public class EmailContentBuilder {
         tplContext.setVariable("carrier", ctx.event().carrier());
         tplContext.setVariable("trackingNumber", ctx.event().trackingNumber());
         tplContext.setVariable("shippingAddress", ctx.event().shippingAddress());
+        tplContext.setVariable("status", ctx.event().status());
+        tplContext.setVariable("statusChangedAt", ctx.event().statusChangedAt());
         tplContext.setVariable("dispatchedAt", ctx.event().dispatchedAt());
         return templateEngine.process(SHIPMENT_DISPATCHED_TEMPLATE, tplContext);
     }

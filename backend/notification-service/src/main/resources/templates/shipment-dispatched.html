@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Your order has shipped</title>
+    <title>Shipment update</title>
     <style>
         body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
@@ -16,12 +16,18 @@
 <body>
 <div class="container">
     <div class="header">
-        <h2>📦 Your order is on the way!</h2>
+        <h2 th:if="${status == 'DELIVERED'}">✅ Your order has been delivered!</h2>
+        <h2 th:unless="${status == 'DELIVERED'}">📦 Your order is on the way!</h2>
     </div>
     <div class="content">
         <p>Hello <span th:text="${customerName}">Customer</span>,</p>
-        <p>Great news — order <strong>#<span th:text="${orderId}">123</span></strong> has been dispatched
-            and is now in transit.</p>
+        <p th:if="${status == 'DELIVERED'}">
+            Great news — order <strong>#<span th:text="${orderId}">123</span></strong> was delivered successfully.
+        </p>
+        <p th:unless="${status == 'DELIVERED'}">
+            Great news — order <strong>#<span th:text="${orderId}">123</span></strong> has been dispatched
+            and is now in transit.
+        </p>
 
         <div class="tracking-box">
             <div>
@@ -36,13 +42,18 @@
                 <span class="label">Shipping to</span><br/>
                 <span th:text="${shippingAddress}">123 Example St.</span>
             </div>
-            <div style="margin-top: 12px;">
+            <div style="margin-top: 12px;" th:if="${status == 'DELIVERED'}">
+                <span class="label">Delivered at</span><br/>
+                <span th:text="${statusChangedAt}">2026-04-27T10:00:00Z</span>
+            </div>
+            <div style="margin-top: 12px;" th:if="${status != 'DELIVERED'}">
                 <span class="label">Dispatched at</span><br/>
-                <span th:text="${dispatchedAt}">2026-04-27T10:00:00Z</span>
+                <span th:text="${dispatchedAt != null ? dispatchedAt : statusChangedAt}">2026-04-27T10:00:00Z</span>
             </div>
         </div>
 
-        <p style="margin-top: 20px;">You can use the tracking number above with your carrier to
+        <p style="margin-top: 20px;" th:if="${status == 'DELIVERED'}">We hope everything arrived safely.</p>
+        <p style="margin-top: 20px;" th:if="${status != 'DELIVERED'}">You can use the tracking number above with your carrier to
             follow the parcel until delivery.</p>
         <p>Thanks for ordering with us!</p>
     </div>

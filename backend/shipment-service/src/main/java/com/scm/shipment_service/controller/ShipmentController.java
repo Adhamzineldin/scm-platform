@@ -76,7 +76,7 @@ public class ShipmentController {
             @PathVariable Long id,
             @RequestBody StatusAdvanceRequest req,
             @RequestHeader(value = "X-User-Id", defaultValue = "SYSTEM") String userId) {
-        ShipmentStatus newStatus = ShipmentStatus.valueOf(req.getStatus().toUpperCase());
+        ShipmentStatus newStatus = service.parseStatus(req.getStatus());
         return ShipmentMapper.toResponse(service.advanceStatus(id, newStatus, userId, req.getNote()));
     }
 
