@@ -147,3 +147,24 @@ RDS / MSK once you swap the env values. You only pay AWS once you're sure.
 | Eureka single instance | 🟡 single point of failure | Disabled in AWS overlay → not an issue |
 | No CI/CD | 🟡 manual `docker push` | Add GitHub Actions later if needed |
 
+## Bonus artifacts (event-driven workers + autoscaling)
+
+The repository now includes dedicated bonus documentation and infra templates:
+
+- Full doc: `docs/FULL_DOCUMENTATION.md`
+- Evidence one-pager: `docs/EVIDENCE_EVENT_PIPELINE_BONUS.md`
+- PlantUML diagrams: `docs/diagrams/*.puml`
+- ECS worker autoscaling policies:
+  - `infra/ecs/worker-autoscaling/target-tracking-policies.json`
+  - `infra/ecs/worker-autoscaling/app-autoscaling-setup.sh`
+- Monitoring pipeline + dashboard:
+  - `infra/monitoring/README.md`
+  - `infra/monitoring/grafana/dashboards/kafka-worker-observability.json`
+
+To apply worker autoscaling (CPU + Kafka lag metric):
+
+```bash
+chmod +x infra/ecs/worker-autoscaling/app-autoscaling-setup.sh
+infra/ecs/worker-autoscaling/app-autoscaling-setup.sh
+```
+

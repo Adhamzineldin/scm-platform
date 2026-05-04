@@ -1,0 +1,40 @@
+@startuml
+skinparam shadowing false
+
+title Event-Driven Order Pipeline (Request -> Queue -> Worker -> Result)
+
+actor Customer
+participant "Frontend" as Frontend
+participant "API Gateway" as Gateway
+participant "Order Service" as OrderSvc
+queue "Kafka Topic:\norder-created-topic" as T1
+queue "Kafka Topic:\nwarehouse-order-packed" as T2
+queue "Kafka Topic:\norder-ready-for-dispatch-topic" as T3
+participant "Warehouse Service" as WarehouseSvc
+participant "Shipment Worker\n(shipment-service)" as ShipmentWorker
+queue "Kafka Topic:\nshipment-dispatched-topic" as T4
+participant "Notification Worker\n(notification-service)" as NotificationWorker
+participant "Email Provider" as Email
+
+Customer -> Frontend : Place order
+Frontend -> Gateway : POST /api/orders
+Gateway -> OrderSvc : Create order (sync)
+OrderSvc -> T1 : Publish OrderCreatedEvent
+OrderSvc -> WarehouseSvc : Create picking task
+OrderSvc --> Gateway : 201 VALIDATED
+Gateway --> Frontend : Order response
+
+WarehouseSvc -> T2 : Publish OrderPackedEvent
+T2 -> OrderSvc : KafkaListener handles event
+OrderSvc -> T3 : Publish OrderReadyForDispatchEvent
+
+T3 -> ShipmentWorker : Kafka consumer (retry + DLT)
+ShipmentWorker -> ShipmentWorker : Create shipment + dispatch
+ShipmentWorker -> T4 : Publish ShipmentDispatchedEvent
+
+T4 -> NotificationWorker : Kafka consumer (retry + DLT)
+NotificationWorker -> Email : Send confirmation/tracking mail
+NotificationWorker --> Customer : Delivery notification
+
+@enduml
+

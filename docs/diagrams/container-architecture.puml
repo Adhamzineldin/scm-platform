@@ -1,0 +1,62 @@
+@startuml
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title SCM Platform - Container Architecture
+
+node "Frontend" {
+  [Dashboard (React + Nginx)] as Dashboard
+}
+
+node "Backend" {
+  [API Gateway]
+  [Auth Service]
+  [Order Service]
+  [Inventory Service]
+  [Warehouse Service]
+  [Shipment Service]
+  [Notification Service]
+  [Cart Service]
+  [Document Gen Service]
+  [Discovery Server]
+}
+
+queue "Kafka / MSK" as Kafka
+database "Postgres / RDS" as Postgres
+
+Dashboard --> [API Gateway]
+[API Gateway] --> [Auth Service]
+[API Gateway] --> [Order Service]
+[API Gateway] --> [Inventory Service]
+[API Gateway] --> [Warehouse Service]
+[API Gateway] --> [Shipment Service]
+[API Gateway] --> [Notification Service]
+[API Gateway] --> [Cart Service]
+[API Gateway] --> [Document Gen Service]
+
+[Order Service] --> [Inventory Service] : reserve stock
+[Order Service] --> [Warehouse Service] : create picking task
+[Order Service] --> Kafka : order-created/status/ready events
+[Warehouse Service] --> Kafka : warehouse-order-packed
+[Shipment Service] --> Kafka : shipment-dispatched
+[Notification Service] <-- Kafka : email-trigger events
+
+[Auth Service] --> Postgres
+[Order Service] --> Postgres
+[Inventory Service] --> Postgres
+[Warehouse Service] --> Postgres
+[Shipment Service] --> Postgres
+[Cart Service] --> Postgres
+
+[API Gateway] --> [Discovery Server]
+[Auth Service] --> [Discovery Server]
+[Order Service] --> [Discovery Server]
+[Inventory Service] --> [Discovery Server]
+[Warehouse Service] --> [Discovery Server]
+[Shipment Service] --> [Discovery Server]
+[Notification Service] --> [Discovery Server]
+[Cart Service] --> [Discovery Server]
+[Document Gen Service] --> [Discovery Server]
+
+@enduml
+

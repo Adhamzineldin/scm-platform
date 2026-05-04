@@ -1,0 +1,47 @@
+@startuml
+skinparam shadowing false
+
+title SCM Platform - AWS Deployment (Target)
+
+cloud "AWS" {
+  node "VPC" {
+    node "Public Subnet" {
+      [Application Load Balancer]
+    }
+
+    node "Private Subnet - ECS Fargate" {
+      [dashboard task]
+      [api-gateway task]
+      [order-service worker/task]
+      [shipment-service worker/task]
+      [notification-service worker/task]
+      [other domain services]
+    }
+
+    database "RDS PostgreSQL" as RDS
+    queue "MSK (Kafka)" as MSK
+  }
+
+  cloud "CloudWatch" as CW
+  cloud "Application Auto Scaling" as AAS
+  cloud "SES" as SES
+}
+
+[Application Load Balancer] --> [dashboard task]
+[Application Load Balancer] --> [api-gateway task]
+
+[api-gateway task] --> [other domain services]
+[order-service worker/task] --> MSK
+[shipment-service worker/task] --> MSK
+[notification-service worker/task] --> MSK
+
+[other domain services] --> RDS
+[notification-service worker/task] --> SES
+
+CW --> AAS : CPU + custom Kafka lag metrics
+AAS --> [order-service worker/task]
+AAS --> [shipment-service worker/task]
+AAS --> [notification-service worker/task]
+
+@enduml
+

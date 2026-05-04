@@ -43,13 +43,16 @@ services:
       - "2181:2181"
 
   kafka:
-    image: confluentinc/cp-kafka:7.4.4
+    build:
+      context: ./docker/kafka
+      dockerfile: Dockerfile
     profiles: ["local"]
     depends_on:
       - zookeeper
     ports:
       - "9092:9092"
       - "29092:29092"
+      - "7071:7071"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -58,6 +61,8 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # Prometheus JMX Java agent for broker metrics.
+      KAFKA_OPTS: -javaagent:/opt/jmx_exporter/jmx_prometheus_javaagent.jar=7071:/etc/jmx-exporter/kafka-jmx-config.yml
     healthcheck:
       test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka:29092 || exit 1"]
       interval: 10s
@@ -74,6 +79,17 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    profiles: ["local"]
+    depends_on:
+      - kafka
+    ports:
+      - "9308:9308"
+    command:
+      - --kafka.server=kafka:29092
+      - --web.listen-address=:9308
 
   # ─────────────────────────── Service Discovery ───────────────────────────
   discovery-server:
@@ -307,6 +323,7 @@ services:
     profiles: ["local"]
     depends_on:
       - api-gateway
+      - discovery-server
       - auth-service
       - cart-service
       - order-service
@@ -314,6 +331,8 @@ services:
       - shipment-service
       - warehouse-service
       - notification-service
+      - kafka
+      - kafka-exporter
     ports:
       - "9090:9090"
     volumes:
@@ -333,6 +352,9 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./infra/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./infra/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards
 
 volumes:
   postgres_data:

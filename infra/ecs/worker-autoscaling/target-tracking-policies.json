@@ -1,0 +1,118 @@
+{
+  "clusterName": "scm-cluster",
+  "region": "us-east-1",
+  "services": [
+    {
+      "serviceName": "order-service",
+      "minCapacity": 1,
+      "maxCapacity": 10,
+      "policies": [
+        {
+          "policyName": "order-cpu-target",
+          "targetTrackingScalingPolicyConfiguration": {
+            "targetValue": 60.0,
+            "predefinedMetricSpecification": {
+              "predefinedMetricType": "ECSServiceAverageCPUUtilization"
+            },
+            "scaleOutCooldown": 60,
+            "scaleInCooldown": 180
+          }
+        },
+        {
+          "policyName": "order-kafka-lag-target",
+          "targetTrackingScalingPolicyConfiguration": {
+            "targetValue": 200.0,
+            "customizedMetricSpecification": {
+              "namespace": "SCM/Workers",
+              "metricName": "ConsumerLag",
+              "statistic": "Average",
+              "dimensions": [
+                {
+                  "name": "ServiceName",
+                  "value": "order-service"
+                }
+              ]
+            },
+            "scaleOutCooldown": 30,
+            "scaleInCooldown": 180
+          }
+        }
+      ]
+    },
+    {
+      "serviceName": "shipment-service",
+      "minCapacity": 1,
+      "maxCapacity": 10,
+      "policies": [
+        {
+          "policyName": "shipment-cpu-target",
+          "targetTrackingScalingPolicyConfiguration": {
+            "targetValue": 60.0,
+            "predefinedMetricSpecification": {
+              "predefinedMetricType": "ECSServiceAverageCPUUtilization"
+            },
+            "scaleOutCooldown": 60,
+            "scaleInCooldown": 180
+          }
+        },
+        {
+          "policyName": "shipment-kafka-lag-target",
+          "targetTrackingScalingPolicyConfiguration": {
+            "targetValue": 100.0,
+            "customizedMetricSpecification": {
+              "namespace": "SCM/Workers",
+              "metricName": "ConsumerLag",
+              "statistic": "Average",
+              "dimensions": [
+                {
+                  "name": "ServiceName",
+                  "value": "shipment-service"
+                }
+              ]
+            },
+            "scaleOutCooldown": 30,
+            "scaleInCooldown": 180
+          }
+        }
+      ]
+    },
+    {
+      "serviceName": "notification-service",
+      "minCapacity": 1,
+      "maxCapacity": 10,
+      "policies": [
+        {
+          "policyName": "notification-cpu-target",
+          "targetTrackingScalingPolicyConfiguration": {
+            "targetValue": 55.0,
+            "predefinedMetricSpecification": {
+              "predefinedMetricType": "ECSServiceAverageCPUUtilization"
+            },
+            "scaleOutCooldown": 60,
+            "scaleInCooldown": 180
+          }
+        },
+        {
+          "policyName": "notification-kafka-lag-target",
+          "targetTrackingScalingPolicyConfiguration": {
+            "targetValue": 150.0,
+            "customizedMetricSpecification": {
+              "namespace": "SCM/Workers",
+              "metricName": "ConsumerLag",
+              "statistic": "Average",
+              "dimensions": [
+                {
+                  "name": "ServiceName",
+                  "value": "notification-service"
+                }
+              ]
+            },
+            "scaleOutCooldown": 30,
+            "scaleInCooldown": 180
+          }
+        }
+      ]
+    }
+  ]
+}
+

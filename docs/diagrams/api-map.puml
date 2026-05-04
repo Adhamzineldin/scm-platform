@@ -1,0 +1,59 @@
+@startuml
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title API Gateway Route Map
+
+rectangle "API Gateway" as Gateway
+
+package "Auth Service" {
+  [GET/POST /api/auth/**]
+  [GET/POST /api/users/**]
+  [GET/POST /api/admin/**]
+  [GET/POST /api/dashboard/**]
+}
+
+package "Order Service" {
+  [GET/POST /api/orders/**]
+}
+
+package "Inventory Service" {
+  [GET/POST /api/inventory/**]
+  [GET/POST /api/products/**]
+}
+
+package "Shipment Service" {
+  [GET/POST /api/shipments/**]
+}
+
+package "Warehouse Service" {
+  [GET/POST /api/warehouse/**]
+}
+
+package "Notification Service" {
+  [GET/POST /api/notifications/**]
+}
+
+package "Document Gen Service" {
+  [GET/POST /api/documents/**]
+}
+
+package "Cart Service" {
+  [GET/POST /api/carts/**]
+}
+
+Gateway --> [GET/POST /api/auth/**]
+Gateway --> [GET/POST /api/users/**]
+Gateway --> [GET/POST /api/admin/**]
+Gateway --> [GET/POST /api/dashboard/**]
+Gateway --> [GET/POST /api/orders/**]
+Gateway --> [GET/POST /api/inventory/**]
+Gateway --> [GET/POST /api/products/**]
+Gateway --> [GET/POST /api/shipments/**]
+Gateway --> [GET/POST /api/warehouse/**]
+Gateway --> [GET/POST /api/notifications/**]
+Gateway --> [GET/POST /api/documents/**]
+Gateway --> [GET/POST /api/carts/**]
+
+@enduml
+
