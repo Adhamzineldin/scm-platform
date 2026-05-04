@@ -35,6 +35,7 @@ const ALL_LINKS: NavLink[] = [
   { to: '/documents', label: 'Documents', icon: FileText },
   { to: '/notifications', label: 'Notifications', icon: Bell },
   { to: '/admin/users', label: 'Users', icon: Users, roles: [] }, // ADMIN-only (empty list + ADMIN bypass)
+  { to: '/admin/events', label: 'Event State', icon: Bell, roles: [] },
   { to: '/profile', label: 'Profile', icon: User },
 ]
 

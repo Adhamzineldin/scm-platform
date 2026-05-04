@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { Link } from 'react-router-dom'
 import { listUsers, updateUserRole, type AdminUser } from '../../api/adminApi.ts'
 import type { Role } from '../../api/authApi.ts'
 import { extractErrorMessage } from '../../api/axiosInstance.ts'
@@ -46,13 +47,21 @@ export default function AdminUsersPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Users</h1>
-        <input
-          type="search"
-          placeholder="Search username / email / role…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-72 rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
+        <div className="flex items-center gap-2">
+          <Link
+            to="/admin/events"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Event State
+          </Link>
+          <input
+            type="search"
+            placeholder="Search username / email / role…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-72 rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">

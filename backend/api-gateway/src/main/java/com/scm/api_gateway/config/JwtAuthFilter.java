@@ -32,6 +32,7 @@ public class JwtAuthFilter implements HandlerInterceptor {
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String TOKEN_QUERY_PARAM = "token";
+    private static final String ADMIN_ROLE = "ADMIN";
 
     private final SecretKey signingKey;
 
@@ -56,6 +57,12 @@ public class JwtAuthFilter implements HandlerInterceptor {
                     .getPayload();
 
             String userId = claims.getSubject();
+            String role = claims.get("role", String.class);
+
+            if (requiresAdmin(request) && !ADMIN_ROLE.equals(role)) {
+                return reject(response, "Admin role required");
+            }
+
             request.setAttribute(USER_ID_HEADER, userId);
             // Spring Cloud Gateway MVC uses the response wrapper around the proxied
             // request; setting a request header on the *response* isn't picked up.
@@ -69,6 +76,11 @@ public class JwtAuthFilter implements HandlerInterceptor {
             log.warn("JWT validation failed for {}: {}", request.getRequestURI(), ex.getMessage());
             return reject(response, "Invalid JWT: " + ex.getMessage());
         }
+    }
+
+    private boolean requiresAdmin(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path != null && path.startsWith("/api/notifications/admin/");
     }
 
     private String extractToken(HttpServletRequest request) {

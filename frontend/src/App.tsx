@@ -17,6 +17,7 @@ import ShipmentDetailPage from './pages/shipments/ShipmentDetailPage.tsx'
 import CartPage from './pages/cart/CartPage.tsx'
 import ShopPage from './pages/shop/ShopPage.tsx'
 import AdminUsersPage from './pages/admin/AdminUsersPage.tsx'
+import AdminEventDebugPage from './pages/admin/AdminEventDebugPage.tsx'
 import NotificationsPage from './pages/notifications/NotificationsPage.tsx'
 import DocumentsPage from './pages/documents/DocumentsPage.tsx'
 import ProfilePage from './pages/profile/ProfilePage.tsx'
@@ -63,6 +64,7 @@ export default function App() {
 
           <Route element={<RoleRoute allow={[]} />}>
             <Route path="/admin/users" element={<AdminUsersPage />} />
+            <Route path="/admin/events" element={<AdminEventDebugPage />} />
           </Route>
         </Route>
       </Route>

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -19,6 +20,7 @@ public class NotificationStreamRegistry {
     private static final long EMITTER_TIMEOUT_MS = 30L * 60L * 1000L;
 
     private final Map<String, List<SseEmitter>> emittersByUser = new ConcurrentHashMap<>();
+    private final Map<String, InAppNotification> latestEventByUser = new ConcurrentHashMap<>();
 
     public SseEmitter register(String userId) {
         SseEmitter emitter = new SseEmitter(EMITTER_TIMEOUT_MS);
@@ -40,6 +42,8 @@ public class NotificationStreamRegistry {
     }
 
     public void publish(String userId, InAppNotification payload) {
+        latestEventByUser.put(userId, payload);
+
         List<SseEmitter> targets = emittersByUser.get(userId);
         if (targets == null || targets.isEmpty()) {
             log.debug("No active SSE subscribers for userId={}, skipping realtime push", userId);
@@ -70,6 +74,24 @@ public class NotificationStreamRegistry {
     void shutdown() {
         emittersByUser.values().forEach(list -> list.forEach(SseEmitter::complete));
         emittersByUser.clear();
+        latestEventByUser.clear();
+    }
+
+    public List<NotificationEventState> snapshotLatestEvents() {
+        List<NotificationEventState> snapshot = new ArrayList<>();
+        latestEventByUser.forEach((userId, payload) -> {
+            int subscribers = emittersByUser.getOrDefault(userId, List.of()).size();
+            snapshot.add(new NotificationEventState(
+                    userId,
+                    payload.type(),
+                    payload.orderId(),
+                    payload.title(),
+                    payload.message(),
+                    payload.timestamp(),
+                    subscribers
+            ));
+        });
+        return snapshot;
     }
 
     private void remove(String userId, SseEmitter emitter) {

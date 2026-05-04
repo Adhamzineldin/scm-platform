@@ -8,6 +8,16 @@ export interface AdminUser {
   role: Role
 }
 
+export interface AdminEventState {
+  userId: string
+  type: string
+  orderId?: number
+  title?: string
+  message?: string
+  timestamp?: string
+  activeSubscribers: number
+}
+
 export async function listUsers(): Promise<AdminUser[]> {
   const { data } = await api.get<AdminUser[]>('/api/admin/users')
   return data
@@ -15,6 +25,11 @@ export async function listUsers(): Promise<AdminUser[]> {
 
 export async function updateUserRole(id: number, role: Role): Promise<AdminUser> {
   const { data } = await api.patch<AdminUser>(`/api/admin/users/${id}/role`, { role })
+  return data
+}
+
+export async function listNotificationEventState(): Promise<AdminEventState[]> {
+  const { data } = await api.get<AdminEventState[]>('/api/notifications/admin/event-state')
   return data
 }
 
