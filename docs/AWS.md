@@ -415,69 +415,132 @@ aws ecs put-cluster-capacity-providers \
 
 ### Step 11 — ECS Task Definitions
 
-One task definition per service. Each task definition specifies:
-- **CPU / Memory** — 256 CPU units (0.25 vCPU) / 512 MB for backend Java services; 512/1024 for order-service and warehouse-service (more logic); 256/512 for document-gen (Node.js)
-- **Image** — ECR URL with `:latest` tag
-- **Environment variables** — non-sensitive ones inline; sensitive ones via `valueFrom` pointing at Secrets Manager
-- **Log configuration** — `awslogs` driver → CloudWatch
-- **Port mappings** — container port only (Fargate networking mode `awsvpc` gives each task its own ENI)
+One task definition per service. Generated via Python (not bash heredoc) to avoid zsh `:r` modifier expanding `$VAR:role` incorrectly.
 
-**Why `awsvpc` networking?** Each task gets its own private IP in the VPC. Security groups apply at the task level (not the host level, as with `bridge` mode). Service Connect requires `awsvpc`.
+Key design decisions per task def:
 
-```
-# Created per service
-```
+| Field | Choice | Why |
+|---|---|---|
+| `networkMode` | `awsvpc` | Each task gets its own ENI + private IP; required for Service Connect |
+| `cpu` / `memory` | 512/1024 Java, 256/512 Node+nginx | Java JVM needs ~512 MB minimum headroom |
+| Env vars | non-sensitive inline | Hostname, port, service URLs — not secret |
+| Secrets | `valueFrom` → Secrets Manager | DB password, JWT secret, email credentials — never in plaintext |
+| `logConfiguration` | `awslogs` → `/ecs/scm/<name>` | CloudWatch log group per service, 30-day retention |
+| Kafka bootstrap | `kafka:9092` | Service Connect DNS resolves `kafka` within `scm.local` namespace |
+| `EUREKA_CLIENT_ENABLED` | `false` | Disabled — ECS Service Connect replaces Eureka |
+
+**Why Python not bash for JSON generation?**
+Zsh parameter expansion modifiers (`:r`, `:e`, `:h`) activate when `$VAR:something` appears in a string. `$ACCOUNT:role` → `$ACCOUNT` with `:r` modifier applied → strips "extension" → produces `310133718291ole/` instead of `310133718291:role/`. Python string interpolation has no such gotcha.
+
+Task definitions registered (all at revision 1):
+`kafka`, `discovery-server`, `api-gateway`, `auth-service`, `cart-service`, `inventory-service`, `order-service`, `shipment-service`, `warehouse-service`, `notification-service`, `document-gen-service`, `dashboard`
 
 ---
 
-### Step 12 — Application Load Balancer
+### Step 12 — Database Initialisation (one-off Fargate task)
+
+RDS is private (not publicly accessible). To create the 6 databases, a one-off `postgres:15` Fargate task ran `psql` commands against the RDS endpoint from inside the VPC.
+
+**Why a Fargate task instead of a bastion EC2?** No EC2 to provision, pay for, or clean up. The task runs, exits with code 0, and disappears. Pure serverless.
+
+```bash
+# Task definition: db-init (postgres:15 image, runs psql -c CREATE DATABASE x6)
+aws ecs run-task \
+  --cluster scm-cluster --task-definition db-init:1 \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[...],securityGroups=[scm-ecs-sg],assignPublicIp=ENABLED}"
+```
+
+**Exit code:** 0 — all 6 databases created:
+`logistics_db`, `cart_db`, `scm_order_db`, `scm_warehouse_db`, `scm_shipment_db`, `scm_inventory_db`
+
+---
+
+### Step 13 — Application Load Balancer
 
 **Why ALB and not NLB?**
 ALB operates at Layer 7 (HTTP/HTTPS) and supports path-based routing — we route `/api/*` to `api-gateway` and `/*` to `dashboard` on a single ALB. NLB is Layer 4 (TCP) and can't do path routing.
 
-**Why one ALB?** Cost. Each ALB costs ~$0.025/hr. Two ALBs = twice the cost for the same functionality since we can use path rules to split traffic.
+**Why one ALB?** Cost. Each ALB costs ~$0.025/hr. Two ALBs = twice the cost for the same functionality.
 
-**Listener rules:**
-- `/*` → `dashboard` target group (port 80)
-- `/api/*` → `api-gateway` target group (port 7080)
+```bash
+aws elbv2 create-load-balancer --name scm-alb \
+  --subnets subnet-05ee7d681585b170e subnet-097acae75ef1765c2 subnet-0ea83e90d06e76d67 \
+  --security-groups sg-0669c4f560f2599b7 \
+  --scheme internet-facing --type application
+
+aws elbv2 create-target-group --name scm-tg-dashboard \
+  --protocol HTTP --port 80 --vpc-id vpc-034e3644d0eb4001f \
+  --target-type ip --health-check-path "/"
+
+aws elbv2 create-target-group --name scm-tg-api-gateway \
+  --protocol HTTP --port 7080 --vpc-id vpc-034e3644d0eb4001f \
+  --target-type ip --health-check-path "/actuator/health"
+
+# Listener: default → dashboard, priority-10 rule: /api/* → api-gateway
+aws elbv2 create-listener --load-balancer-arn <ALB_ARN> \
+  --protocol HTTP --port 80 \
+  --default-actions Type=forward,TargetGroupArn=<TG_DASHBOARD_ARN>
+
+aws elbv2 create-rule --listener-arn <LISTENER_ARN> --priority 10 \
+  --conditions '[{"Field":"path-pattern","Values":["/api/*"]}]' \
+  --actions '[{"Type":"forward","TargetGroupArn":"<TG_GATEWAY_ARN>"}]'
+```
+
+**ALB DNS:** `scm-alb-956459181.eu-north-1.elb.amazonaws.com`
+**ALB ARN:** `arn:aws:elasticloadbalancing:eu-north-1:310133718291:loadbalancer/app/scm-alb/526e1a66ad5516bc`
+**dashboard TG ARN:** `arn:aws:elasticloadbalancing:eu-north-1:310133718291:targetgroup/scm-tg-dashboard/51a7e43ba512f752`
+**api-gateway TG ARN:** `arn:aws:elasticloadbalancing:eu-north-1:310133718291:targetgroup/scm-tg-api-gateway/2917d6610cf615a6`
+
+---
+
+### Step 14 — ECS Services
+
+One ECS service per task definition.
+
+- **Desired count:** 1
+- **Launch type:** FARGATE
+- **Subnets:** all 3 AZs
+- **Security group:** `scm-ecs-sg` (`sg-0e4653fcd9cdf0ace`)
+- **Service Connect:** enabled, namespace `scm.local`
+- **`assignPublicIp=ENABLED`** — required for Fargate in public subnets to pull images from ECR without a NAT gateway
 
 **Why not expose each service directly?** Only `api-gateway` and `dashboard` are user-facing. Backend services communicate over Service Connect (private DNS) — they never need internet exposure.
 
-```
-# Created
-```
+**Load balancer attachment:**
+- `api-gateway` → `scm-tg-api-gateway`
+- `dashboard` → `scm-tg-dashboard`
 
-**ALB DNS:** (filled in when available)
+Services deployed and status at creation:
 
----
-
-### Step 13 — ECS Services
-
-One ECS service per task definition. Each service:
-- **Desired count:** 1 — minimum cost, enough for a demo
-- **Launch type:** FARGATE
-- **Subnets:** all 3 AZs for resilience
-- **Security group:** ECS SG (created in Step 1d)
-- **Service Connect:** enabled, namespace `scm.local`
-- **Load balancer attachment:** only `api-gateway` and `dashboard` services are attached to ALB target groups
-
-**Why desired count 1?** The autoscaling policies from `infra/ecs/worker-autoscaling/` will scale up based on CPU or Kafka lag. Starting at 1 minimises cost during idle periods.
-
-```
-# Created per service
-```
+| Service | Running | Notes |
+|---|---|---|
+| kafka | 0→1 (image pull in progress) | bitnami/kafka:3.7 public image pull |
+| discovery-server | 1 | portName=eureka (not http) |
+| api-gateway | 1 | ALB attached |
+| auth-service | 1 | |
+| cart-service | 1 | |
+| inventory-service | 1 | |
+| order-service | 1 | |
+| shipment-service | 1 | |
+| warehouse-service | 1 | |
+| notification-service | 1 | |
+| document-gen-service | 1 | |
+| dashboard | 1 | ALB attached |
 
 ---
 
-### Step 14 — Verify & smoke test
+### Step 15 — Verify & smoke test
 
 ```bash
 # Check all services RUNNING
-aws ecs list-tasks --cluster scm-cluster
+aws ecs describe-services --cluster scm-cluster \
+  --services kafka api-gateway dashboard \
+  --query "services[*].{name:serviceName,running:runningCount}"
 
 # Hit the ALB
-curl http://<ALB-DNS>/api/actuator/health
-curl http://<ALB-DNS>/
+curl http://scm-alb-956459181.eu-north-1.elb.amazonaws.com/
+curl http://scm-alb-956459181.eu-north-1.elb.amazonaws.com/api/actuator/health
 ```
 
 ---
@@ -485,20 +548,19 @@ curl http://<ALB-DNS>/
 ## Cost kill-switch (when you're done demoing)
 
 ```bash
-# Scale all services to 0 (stops Fargate billing, keeps task defs/config)
-for svc in api-gateway auth-service cart-service inventory-service \
+# Scale all services to 0 (stops Fargate billing, keeps task defs/config intact)
+for svc in kafka api-gateway auth-service cart-service inventory-service \
            order-service shipment-service warehouse-service \
            notification-service document-gen-service discovery-server dashboard; do
   aws ecs update-service --cluster scm-cluster --service $svc --desired-count 0
 done
 
 # Delete the ALB (saves ~$0.025/hr)
-aws elbv2 delete-load-balancer --load-balancer-arn <ALB_ARN>
-
-# MSK Serverless charges per partition-hour — delete when done
-aws kafka delete-cluster --cluster-arn <MSK_ARN>
+aws elbv2 delete-load-balancer \
+  --load-balancer-arn arn:aws:elasticloadbalancing:eu-north-1:310133718291:loadbalancer/app/scm-alb/526e1a66ad5516bc
 
 # RDS is Free Tier — leave it running (costs $0 for 12 months on t4g.micro)
+# Kafka runs on Fargate — already at 0 cost once scaled to 0 above
 ```
 
 ---
