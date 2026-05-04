@@ -545,6 +545,197 @@ curl http://scm-alb-956459181.eu-north-1.elb.amazonaws.com/api/actuator/health
 
 ---
 
+## Updating a service (redeploy with new code)
+
+Every time you change code in a service and want it live on ECS, follow these steps.
+The process is: **build → tag → push → force redeploy**. ECS pulls the new image and replaces the running task with zero downtime (rolling update).
+
+---
+
+### Step 1 — Authenticate Docker to ECR
+
+Your ECR login token expires every 12 hours. Always run this first.
+
+```bash
+aws ecr get-login-password --region eu-north-1 | \
+  docker login --username AWS --password-stdin \
+  310133718291.dkr.ecr.eu-north-1.amazonaws.com
+```
+
+**Why this command?** ECR doesn't use a static password — it issues a temporary token via STS. The `get-login-password` call fetches that token and pipes it directly into `docker login`. After this, Docker treats ECR like any private registry for the next 12 hours.
+
+---
+
+### Step 2 — Build the updated image
+
+Run from the repo root. Replace `<service>` with the service you changed.
+
+**Backend service (Java/Spring Boot):**
+```bash
+docker build --platform linux/amd64 \
+  -t scm/<service> \
+  ./backend/<service>
+
+# Example — you changed order-service:
+docker build --platform linux/amd64 \
+  -t scm/order-service \
+  ./backend/order-service
+```
+
+**Frontend (dashboard):**
+```bash
+docker build --platform linux/amd64 \
+  -t scm/dashboard \
+  -f ./frontend/Dockerfile \
+  .
+```
+
+**Why `--platform linux/amd64`?** ECS Fargate in `eu-north-1` is x86_64. Building on an ARM machine (M1/M2 Mac) without this flag produces an `arm64` image that crashes on Fargate with `exec format error`.
+
+**Why build from the repo root?** Some Dockerfiles (especially `dashboard`) need context from outside their own directory — e.g., the frontend Dockerfile needs access to the whole monorepo. Building from `.` satisfies that.
+
+---
+
+### Step 3 — Tag the image for ECR
+
+```bash
+docker tag scm/<service> \
+  310133718291.dkr.ecr.eu-north-1.amazonaws.com/scm/<service>:latest
+
+# Example:
+docker tag scm/order-service \
+  310133718291.dkr.ecr.eu-north-1.amazonaws.com/scm/order-service:latest
+```
+
+**Why tag separately?** `docker build -t` sets a local name. ECR requires the full registry hostname in the image name before it accepts a push. Tagging renames the image without rebuilding it.
+
+**Why `:latest`?** The ECS task definitions reference `:latest`. Pushing to `:latest` means ECS picks up the new image automatically on the next deploy — no task definition update needed. If you want versioned rollbacks, push to a version tag (e.g., `:v1.2`) and update the task definition to point at it.
+
+---
+
+### Step 4 — Push to ECR
+
+```bash
+docker push \
+  310133718291.dkr.ecr.eu-north-1.amazonaws.com/scm/<service>:latest
+
+# Example:
+docker push \
+  310133718291.dkr.ecr.eu-north-1.amazonaws.com/scm/order-service:latest
+```
+
+**Why push before telling ECS to redeploy?** ECS pulls the image from ECR at deploy time — if you trigger the redeploy before the push finishes, the running task simply restarts with the old image. Always push first.
+
+---
+
+### Step 5 — Force ECS to redeploy
+
+```bash
+aws ecs update-service \
+  --cluster scm-cluster \
+  --service <service> \
+  --force-new-deployment
+
+# Example:
+aws ecs update-service \
+  --cluster scm-cluster \
+  --service order-service \
+  --force-new-deployment
+```
+
+**Why `--force-new-deployment`?** The task definition hasn't changed (still revision 1, still points at `:latest`). Without this flag, ECS sees no change in the task definition and does nothing. `--force-new-deployment` tells ECS to stop the current task and start a new one regardless, which pulls the freshly pushed `:latest` image.
+
+**What happens during the redeploy?**
+1. ECS starts a new task with the new image in parallel with the old one
+2. The new task registers with the ALB target group (for `api-gateway` / `dashboard`)
+3. Once the new task passes health checks, ECS drains and stops the old task
+4. Total downtime: 0 (rolling update). The whole process takes ~60–120 seconds.
+
+---
+
+### Step 6 — Confirm the new task is running
+
+```bash
+aws ecs describe-services \
+  --cluster scm-cluster \
+  --services <service> \
+  --query "services[0].{running:runningCount,pending:pendingCount,deployments:deployments[*].{status:status,desired:desiredCount,running:runningCount}}" \
+  --output json
+
+# Example:
+aws ecs describe-services \
+  --cluster scm-cluster \
+  --services order-service \
+  --query "services[0].{running:runningCount,pending:pendingCount,deployments:deployments[*].{status:status,desired:desiredCount,running:runningCount}}" \
+  --output json
+```
+
+You want to see `"running": 1` and only one deployment with status `"PRIMARY"`. If you see two deployments (PRIMARY + ACTIVE), the rolling update is still in progress — wait 30 seconds and re-run.
+
+---
+
+### Updating multiple services at once
+
+If a change touches several services (e.g., a shared library change), build and push all of them first, then force-redeploy all at once:
+
+```bash
+# 1. Build + push all changed services
+ACCOUNT=310133718291.dkr.ecr.eu-north-1.amazonaws.com
+
+for svc in order-service warehouse-service; do
+  docker build --platform linux/amd64 -t scm/$svc ./backend/$svc
+  docker tag scm/$svc $ACCOUNT/scm/$svc:latest
+  docker push $ACCOUNT/scm/$svc:latest
+done
+
+# 2. Force redeploy all at once
+for svc in order-service warehouse-service; do
+  aws ecs update-service \
+    --cluster scm-cluster \
+    --service $svc \
+    --force-new-deployment \
+    --query "service.{name:serviceName,status:status}" \
+    --output json
+done
+```
+
+**Why push all before redeploying any?** If service A calls service B, and you redeploy A before B's new image is pushed, you briefly have a new A talking to an old B. Pushing everything first, then redeploying everything, keeps versions consistent.
+
+---
+
+### Quick reference — one-liner per service
+
+```bash
+# Set your target service
+SVC=order-service   # change this
+
+# Full update pipeline in one block
+aws ecr get-login-password --region eu-north-1 | \
+  docker login --username AWS --password-stdin \
+  310133718291.dkr.ecr.eu-north-1.amazonaws.com && \
+docker build --platform linux/amd64 -t scm/$SVC ./backend/$SVC && \
+docker tag scm/$SVC 310133718291.dkr.ecr.eu-north-1.amazonaws.com/scm/$SVC:latest && \
+docker push 310133718291.dkr.ecr.eu-north-1.amazonaws.com/scm/$SVC:latest && \
+aws ecs update-service --cluster scm-cluster --service $SVC --force-new-deployment \
+  --query "service.deployments[0].{status:status,desired:desiredCount}" --output json
+```
+
+For the **dashboard** (different build context):
+```bash
+SVC=dashboard
+
+aws ecr get-login-password --region eu-north-1 | \
+  docker login --username AWS --password-stdin \
+  310133718291.dkr.ecr.eu-north-1.amazonaws.com && \
+docker build --platform linux/amd64 -t scm/$SVC -f ./frontend/Dockerfile . && \
+docker tag scm/$SVC 310133718291.dkr.ecr.eu-north-1.amazonaws.com/scm/$SVC:latest && \
+docker push 310133718291.dkr.ecr.eu-north-1.amazonaws.com/scm/$SVC:latest && \
+aws ecs update-service --cluster scm-cluster --service $SVC --force-new-deployment \
+  --query "service.deployments[0].{status:status,desired:desiredCount}" --output json
+```
+
+---
+
 ## Cost kill-switch (when you're done demoing)
 
 ```bash
