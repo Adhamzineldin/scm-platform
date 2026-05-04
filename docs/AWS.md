@@ -853,6 +853,97 @@ To regenerate, re-run the Python script in this session history or rebuild from 
 
 ---
 
+## HTTPS / TLS — ACM Certificate + ALB HTTPS Listener
+
+### Why ACM over Let's Encrypt?
+
+| | ACM | Let's Encrypt |
+|---|---|---|
+| Cost | Free | Free |
+| Renewal | Automatic (AWS manages it) | Manual or cron job (certbot) |
+| ALB integration | Native — attach ARN to listener | Must upload cert to IAM/ACM manually every 90 days |
+| Setup complexity | Request + DNS CNAME | Certbot server, renewal automation, storage |
+
+ACM certificates attached to an ALB never expire from your perspective — AWS renews them automatically before expiry with no action needed.
+
+### Certificate details
+
+- **Domain:** `scm.maayn.com`
+- **Validation method:** DNS (one CNAME record in Cloudflare, proxy OFF)
+- **ARN:** `arn:aws:acm:eu-north-1:310133718291:certificate/4eb1b17a-5b05-4bc9-bef8-ede4f61d3663`
+- **Status:** ISSUED ✅
+
+### Validation CNAME added to Cloudflare
+
+```
+Type:  CNAME
+Name:  _bd0709427c6585a5a70a383a24fd18d8.scm
+Value: _84e90d73eaf57ffc963a8d48f59a6a5b.jkddzztszm.acm-validations.aws.
+Proxy: OFF (DNS-only — ACM must see the raw DNS value, not Cloudflare's IP)
+```
+
+### ALB listener configuration after cert
+
+```bash
+# Create HTTPS listener — cert attached, TLS 1.3 policy, default → dashboard
+aws acm request-certificate \
+  --domain-name scm.maayn.com --validation-method DNS
+
+aws elbv2 create-listener \
+  --load-balancer-arn <ALB_ARN> \
+  --protocol HTTPS --port 443 \
+  --certificates CertificateArn=<CERT_ARN> \
+  --ssl-policy ELBSecurityPolicy-TLS13-1-2-2021-06 \
+  --default-actions Type=forward,TargetGroupArn=<TG_DASHBOARD>
+
+# Add /api/* rule to HTTPS listener (mirrors the HTTP listener)
+aws elbv2 create-rule \
+  --listener-arn <HTTPS_LISTENER_ARN> --priority 10 \
+  --conditions '[{"Field":"path-pattern","Values":["/api/*"]}]' \
+  --actions '[{"Type":"forward","TargetGroupArn":"<TG_GATEWAY>"}]'
+
+# Redirect all HTTP → HTTPS permanently (301)
+aws elbv2 modify-listener \
+  --listener-arn <HTTP_LISTENER_ARN> \
+  --default-actions '[{"Type":"redirect","RedirectConfig":{"Protocol":"HTTPS","Port":"443","StatusCode":"HTTP_301"}}]'
+```
+
+**Why `ELBSecurityPolicy-TLS13-1-2-2021-06`?** This policy enforces TLS 1.2 minimum and enables TLS 1.3. It drops older cipher suites (RC4, 3DES) that have known weaknesses. The most secure AWS-managed policy that still works with all modern browsers.
+
+### Final ALB listener state
+
+| Port | Protocol | Action |
+|---|---|---|
+| 80 | HTTP | Redirect → HTTPS 301 |
+| 443 | HTTPS | Forward → dashboard (default) / api-gateway (/api/*) |
+
+### Cloudflare SSL/TLS mode update
+
+After attaching the ACM cert, change Cloudflare SSL/TLS mode from **Flexible → Full**:
+
+- **Flexible** (old): Cloudflare → ALB over plain HTTP. Used when ALB had no cert.
+- **Full** (now): Cloudflare → ALB over HTTPS. Correct now that ALB has a valid ACM cert.
+- You can also re-enable **HTTP/3 (QUIC)** in Cloudflare → Network — now the full TLS chain is valid, QUIC works correctly.
+
+### CORS fix (api-gateway)
+
+The gateway was using `CorsFilter` (servlet) in a WebFlux (reactive) application. Servlet filters are silently ignored in WebFlux — no `Access-Control-Allow-Origin` headers were ever sent, so every browser preflight failed.
+
+**Fix:** replaced with `CorsWebFilter` from `org.springframework.web.cors.reactive`:
+
+```java
+// WRONG — servlet filter, ignored silently in WebFlux
+import org.springframework.web.filter.CorsFilter;
+
+// CORRECT — reactive WebFilter, works with Spring Cloud Gateway
+import org.springframework.web.cors.reactive.CorsWebFilter;
+import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
+```
+
+Rebuild and push `api-gateway` after this change.
+
+---
+
 ## Custom domain via Cloudflare (`scm.maayn.com`)
 
 ### Why a custom domain?
