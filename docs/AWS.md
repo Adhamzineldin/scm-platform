@@ -736,6 +736,128 @@ aws ecs update-service --cluster scm-cluster --service $SVC --force-new-deployme
 
 ---
 
+## Custom domain via Cloudflare (`scm.maayn.com`)
+
+### Why a custom domain?
+
+The ALB gives you a raw HTTP URL (`http://scm-alb-956459181...`). Without a domain:
+- The browser serves the dashboard over HTTP (no SSL)
+- Chrome's **Private Network Access** policy blocks any HTTP page from calling `localhost` — even accidentally
+- There's no way to get HTTPS without a certificate
+
+Cloudflare solves all three problems in two minutes with zero cost: it provides SSL termination at the edge, gives a clean URL, and since both the page and the API are on `scm.maayn.com`, they share the same origin — **CORS doesn't apply at all**.
+
+---
+
+### Step 1 — Add the DNS record in Cloudflare
+
+In the Cloudflare dashboard for `maayn.com` → **DNS** → **Add record**:
+
+| Type | Name | Target | Proxy status |
+|---|---|---|---|
+| `CNAME` | `scm` | `scm-alb-956459181.eu-north-1.elb.amazonaws.com` | **Proxied** (orange cloud ON) |
+
+**Why CNAME and not A record?** The ALB has a DNS name, not a static IP. ALB IPs change when AWS scales the load balancer. A CNAME follows the DNS name; an A record would go stale.
+
+**Why Proxied (orange cloud) ON?** This routes traffic through Cloudflare's edge network, which handles SSL termination. Without it, Cloudflare is just DNS and provides no HTTPS.
+
+---
+
+### Step 2 — Set Cloudflare SSL/TLS mode to Flexible
+
+In Cloudflare dashboard → **SSL/TLS** → **Overview** → select **Flexible**.
+
+| Mode | Browser → Cloudflare | Cloudflare → ALB | Works? |
+|---|---|---|---|
+| Off | HTTP | HTTP | No HTTPS for users |
+| **Flexible** ✅ | **HTTPS** | **HTTP** | **Use this** |
+| Full | HTTPS | HTTPS | ALB has no HTTPS listener → breaks |
+| Full (Strict) | HTTPS | HTTPS + cert validation | ALB has no cert → breaks |
+
+**Why Flexible?** Our ALB only has an HTTP listener on port 80 (no ACM certificate). Flexible mode means Cloudflare terminates SSL with the user's browser, then forwards to the ALB over plain HTTP inside Cloudflare's private network. The user gets HTTPS; our ALB stays simple.
+
+> No reCAPTCHA, no bot challenge, no other settings to change. Only the SSL/TLS mode matters.
+
+---
+
+### Step 3 — How the URL gets injected at runtime (no rebuild needed)
+
+This is the key part: changing `API_BASE_URL` in the ECS task definition takes effect **without rebuilding the Docker image**.
+
+**How it works:**
+
+```
+docker build  →  index.html contains: window.__APP_CONFIG__ = { API_BASE_URL: "__API_BASE_URL__" }
+                 (placeholder baked in at build time)
+                 ↓
+ECS starts container  →  docker-entrypoint.sh runs BEFORE nginx accepts requests
+                         reads API_BASE_URL env var from the ECS task definition
+                         writes /usr/share/nginx/html/config.js:
+                           window.__APP_CONFIG__ = { "API_BASE_URL": "https://scm.maayn.com" };
+                         ↓
+Browser requests https://scm.maayn.com/
+  → index.html loads
+  → inline script: window.__APP_CONFIG__ = { API_BASE_URL: "__API_BASE_URL__" }  (local dev fallback)
+  → <script src="/config.js"> runs: window.__APP_CONFIG__ = { API_BASE_URL: "https://scm.maayn.com" }
+  → axiosInstance.ts reads window.__APP_CONFIG__.API_BASE_URL → "https://scm.maayn.com"
+  → all API calls go to https://scm.maayn.com/api/...  (same origin, zero CORS)
+```
+
+**Why generate `config.js` instead of sed-patching the JS bundle?**
+The old approach used `sed` to modify the built JS files on disk. If ECS restarted the container (without a new deployment), the placeholder was already gone — the new `API_BASE_URL` could never be picked up. Generating `config.js` fresh on every container start means the env var is always applied, even on a task restart.
+
+---
+
+### Step 4 — Changing the API URL in future (zero rebuild)
+
+If you ever change the domain or need to point at a different backend:
+
+```bash
+# 1. Register a new task definition revision with the new URL
+NEW_URL="https://new-domain.com"
+CURRENT=$(aws ecs describe-task-definition --task-definition dashboard \
+  --query 'taskDefinition' --output json | \
+  python3 -c "
+import sys, json
+td = json.load(sys.stdin)
+for k in ['taskDefinitionArn','revision','status','registeredAt','registeredBy','requiresAttributes','compatibilities']:
+    td.pop(k, None)
+for c in td['containerDefinitions']:
+    for e in c.get('environment', []):
+        if e['name'] == 'API_BASE_URL':
+            e['value'] = '$NEW_URL'
+print(json.dumps(td))
+")
+
+NEW_REV=$(aws ecs register-task-definition --cli-input-json "$CURRENT" \
+  --query "taskDefinition.revision" --output text)
+echo "Registered revision $NEW_REV"
+
+# 2. Deploy it — no docker build, no docker push
+aws ecs update-service \
+  --cluster scm-cluster \
+  --service dashboard \
+  --task-definition "dashboard:${NEW_REV}" \
+  --force-new-deployment \
+  --query "service.deployments[0].{status:status,rollout:rolloutState}" \
+  --output json
+```
+
+ECS stops the old container, starts a new one, `docker-entrypoint.sh` generates a fresh `config.js` with the new URL. Done in ~60 seconds. **No docker build. No docker push.**
+
+---
+
+### Current live URLs
+
+| URL | What it serves |
+|---|---|
+| `https://scm.maayn.com/` | React dashboard (nginx) |
+| `https://scm.maayn.com/api/` | API gateway (Spring Cloud Gateway) |
+
+**Dashboard task definition:** `dashboard:2` — `API_BASE_URL=https://scm.maayn.com`
+
+---
+
 ## Cost kill-switch (when you're done demoing)
 
 ```bash
