@@ -19,14 +19,14 @@ ACCOUNT="310133718291.dkr.ecr.eu-north-1.amazonaws.com"
 # 1. Build and push backend services
 for svc in "${SERVICES[@]}"; do
   echo ">>> Processing backend service: $svc"
-  docker build --platform linux/amd64 -t scm/$svc ./backend/$svc
+  docker build --platform linux/amd64 -t scm/$svc ../backend/$svc
   docker tag scm/$svc $ACCOUNT/scm/$svc:latest
   docker push $ACCOUNT/scm/$svc:latest
 done
 
 # 2. Build and push Dashboard (Dockerfile is in frontend/, context is repo root)
 echo ">>> Processing frontend service: dashboard"
-docker build --platform linux/amd64 -t scm/dashboard -f ./frontend/Dockerfile .
+docker build --platform linux/amd64 -t scm/dashboard -f ../frontend/Dockerfile .
 docker tag scm/dashboard $ACCOUNT/scm/dashboard:latest
 docker push $ACCOUNT/scm/dashboard:latest
 

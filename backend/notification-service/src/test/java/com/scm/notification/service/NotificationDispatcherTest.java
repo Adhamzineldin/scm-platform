@@ -54,6 +54,7 @@ class NotificationDispatcherTest {
         ArgumentCaptor<ShipmentDispatchedContext> captor = ArgumentCaptor.forClass(ShipmentDispatchedContext.class);
         verify(sender).sendShipmentDispatched(captor.capture());
         assertThat(captor.getValue().user().email()).isEqualTo("alice@demo.com");
+        assertThat(captor.getValue().targetUserId()).isEqualTo("7");
         assertThat(captor.getValue().event().orderId()).isEqualTo(22L);
     }
 }

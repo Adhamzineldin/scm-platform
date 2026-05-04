@@ -44,7 +44,7 @@ class EmailNotificationSenderTest {
         ShipmentDispatchedEvent event = new ShipmentDispatchedEvent(
                 1L, 99L, "1", "TRK-DEL", "DHL", "Address", "DELIVERED", "2026-05-04T10:00:00Z", null
         );
-        ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, new UserDto(1L, "alice", "alice@demo.com", "CUSTOMER"));
+        ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, new UserDto(1L, "alice", "alice@demo.com", "CUSTOMER"), "1");
 
         sender.sendShipmentDispatched(context);
 
@@ -61,7 +61,7 @@ class EmailNotificationSenderTest {
         ShipmentDispatchedEvent event = new ShipmentDispatchedEvent(
                 1L, 100L, "1", "TRK-SHP", "FedEx", "Address", "SHIPPED", "2026-05-04T09:00:00Z", "2026-05-04T09:00:00Z"
         );
-        ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, new UserDto(1L, "alice", "alice@demo.com", "CUSTOMER"));
+        ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, new UserDto(1L, "alice", "alice@demo.com", "CUSTOMER"), "1");
 
         sender.sendShipmentDispatched(context);
 

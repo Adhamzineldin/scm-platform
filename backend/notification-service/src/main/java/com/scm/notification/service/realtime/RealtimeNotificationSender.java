@@ -48,7 +48,9 @@ public class RealtimeNotificationSender implements NotificationSender {
 
     @Override
     public void sendShipmentDispatched(ShipmentDispatchedContext context) {
-        String userId = context.user().userId();
+        String userId = context.targetUserId() != null && !context.targetUserId().isBlank()
+                ? context.targetUserId()
+                : context.user().userId();
         String status = context.event().status() != null ? context.event().status() : "SHIPPED";
         InAppNotification payload = InAppNotification.shipmentStatusUpdated(
                 context.event().orderId(),

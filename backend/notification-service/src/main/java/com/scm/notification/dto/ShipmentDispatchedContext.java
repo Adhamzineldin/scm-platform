@@ -7,7 +7,8 @@ package com.scm.notification.dto;
  */
 public record ShipmentDispatchedContext(
         ShipmentDispatchedEvent event,
-        UserDto user
+        UserDto user,
+        String targetUserId
 ) implements NotificationContext {
 
     @Override

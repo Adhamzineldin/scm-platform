@@ -45,8 +45,9 @@ public class NotificationDispatcher {
     }
 
     public void dispatchShipmentConfirmation(ShipmentDispatchedEvent event) {
-        UserDto user = resolveUser(event.userId(), event.orderId());
-        ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, user);
+        String targetUserId = resolveTargetUserId(event.userId(), event.orderId());
+        UserDto user = resolveUser(targetUserId, event.orderId());
+        ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, user, targetUserId);
         fanOut(context, sender -> sender.sendShipmentDispatched(context));
     }
 
@@ -90,6 +91,13 @@ public class NotificationDispatcher {
             log.warn("Could not fetch order details for orderId={}: {}", orderId, ex.getMessage());
             return null;
         }
+    }
+
+    private String resolveTargetUserId(String userId, Long orderId) {
+        if (userId != null && !userId.isBlank()) {
+            return userId.trim();
+        }
+        return resolveUserIdFromOrder(orderId);
     }
 
     private byte[] tryGenerateReceipt(OrderCreatedEvent event) {

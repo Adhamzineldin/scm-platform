@@ -117,6 +117,32 @@ export default function OrderDetailPage() {
     }
   }
 
+  const activityEntries = [
+    ...history.map((h) => ({
+      key: `order-${h.id}`,
+      status: h.newStatus === 'DISPATCHED' ? 'SHIPPED' : h.newStatus,
+      previousStatus: h.previousStatus === 'DISPATCHED' ? 'SHIPPED' : h.previousStatus,
+      changedAt: h.changedAt,
+      changedBy: h.changedBy,
+      note: h.note,
+      rawStatus: h.newStatus,
+    })),
+    ...(shipment?.history ?? []).map((h) => ({
+      key: `shipment-${h.id}`,
+      status: h.newStatus === 'IN_TRANSIT' ? 'SHIPPED' : h.newStatus,
+      previousStatus: h.previousStatus === 'IN_TRANSIT' ? 'SHIPPED' : h.previousStatus,
+      changedAt: h.changedAt,
+      changedBy: h.changedBy,
+      note: h.description,
+      rawStatus: h.newStatus,
+    })),
+  ]
+    .filter((entry, index, all) => {
+      const normalized = `${entry.status}-${entry.changedAt}-${entry.note ?? ''}`
+      return all.findIndex((candidate) => `${candidate.status}-${candidate.changedAt}-${candidate.note ?? ''}` === normalized) === index
+    })
+    .sort((a, b) => new Date(a.changedAt).getTime() - new Date(b.changedAt).getTime())
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -268,20 +294,21 @@ export default function OrderDetailPage() {
       )}
 
       {/* Status history timeline — detailed (shown to all) */}
-      {history.length > 0 && (
+      {activityEntries.length > 0 && (
         <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">Activity Log</h2>
           <ol className="relative ml-3 border-l border-slate-200">
-            {history.map((h) => {
-              const cfg = STATUS_CONFIG[h.newStatus] ?? { label: h.newStatus, color: 'text-slate-600', bg: 'bg-slate-400', icon: Circle }
+            {activityEntries.map((h) => {
+              const cfg = STATUS_CONFIG[h.status] ?? { label: h.status, color: 'text-slate-600', bg: 'bg-slate-400', icon: Circle }
+              const statusLabel = h.rawStatus === 'IN_TRANSIT' ? 'In Transit' : (cfg.label ?? h.status)
               return (
-                <li key={h.id} className="mb-5 ml-5">
+                <li key={h.key} className="mb-5 ml-5">
                   <span className={`absolute -left-2 flex h-4 w-4 items-center justify-center rounded-full ${cfg.bg}`}>
                     <CheckCircle2 size={10} className="text-white" />
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm font-semibold ${cfg.color}`}>{cfg.label}</span>
-                    {h.previousStatus && (
+                    <span className={`text-sm font-semibold ${cfg.color}`}>{statusLabel}</span>
+                    {h.previousStatus && h.previousStatus !== h.status && (
                       <span className="text-xs text-slate-400">from {h.previousStatus}</span>
                     )}
                   </div>

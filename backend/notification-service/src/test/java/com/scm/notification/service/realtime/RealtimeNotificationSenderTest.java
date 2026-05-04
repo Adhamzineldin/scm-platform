@@ -26,7 +26,7 @@ class RealtimeNotificationSenderTest {
         ShipmentDispatchedEvent event = new ShipmentDispatchedEvent(
                 10L, 20L, "1", "TRK-1", "UPS", "Alex", "DELIVERED", "2026-05-04T10:00:00Z", null
         );
-        ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, new UserDto(1L, "alice", "a@x.com", "CUSTOMER"));
+        ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, new UserDto(1L, "alice", "a@x.com", "CUSTOMER"), "1");
 
         sender.sendShipmentDispatched(context);
 
@@ -41,7 +41,7 @@ class RealtimeNotificationSenderTest {
         ShipmentDispatchedEvent event = new ShipmentDispatchedEvent(
                 10L, 20L, "1", "TRK-1", "UPS", "Alex", "SHIPPED", "2026-05-04T09:00:00Z", "2026-05-04T09:00:00Z"
         );
-        ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, new UserDto(1L, "alice", "a@x.com", "CUSTOMER"));
+        ShipmentDispatchedContext context = new ShipmentDispatchedContext(event, new UserDto(1L, "alice", "a@x.com", "CUSTOMER"), "1");
 
         sender.sendShipmentDispatched(context);
 
