@@ -101,8 +101,14 @@ export async function getShipmentByOrder(orderId: number | string): Promise<Ship
   }
 }
 
-export async function createShipment(orderId: number): Promise<ShipmentDetailResponse> {
-  const { data } = await api.post<ShipmentDetailResponse>('/api/shipments', { orderId })
+export interface CreateShipmentRequest {
+  orderId: number
+  userId: string
+  shippingAddress: string
+}
+
+export async function createShipment(body: CreateShipmentRequest): Promise<ShipmentDetailResponse> {
+  const { data } = await api.post<ShipmentDetailResponse>('/api/shipments', body)
   return data
 }
 

@@ -42,9 +42,11 @@ public class ShipmentService {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public Shipment create(Long orderId) {
+    public Shipment create(Long orderId, String userId, String shippingAddress) {
         Shipment s = new Shipment();
         s.setOrderId(orderId);
+        s.setUserId(userId);
+        s.setShippingAddress(shippingAddress);
         s.setStatus(ShipmentStatus.PENDING);
         Shipment saved = repo.save(s);
 

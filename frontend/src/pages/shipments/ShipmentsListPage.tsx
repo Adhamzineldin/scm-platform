@@ -54,7 +54,17 @@ export default function ShipmentsListPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: () => createShipment(selectedOrderId!),
+    mutationFn: () => {
+      const selected = (pickedOrders?.content ?? []).find((o) => o.id === selectedOrderId)
+      if (!selected) {
+        throw new Error('Selected order not found')
+      }
+      return createShipment({
+        orderId: selected.id,
+        userId: selected.userId,
+        shippingAddress: selected.shippingAddress,
+      })
+    },
     onSuccess: (shipment) => {
       toast.success('Shipment created')
       queryClient.invalidateQueries({ queryKey: ['shipments'] })

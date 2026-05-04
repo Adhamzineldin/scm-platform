@@ -34,7 +34,7 @@ public class ShipmentController {
      */
     @PostMapping
     public ShipmentResponse create(@RequestBody ShipmentRequest req) {
-        return ShipmentMapper.toResponse(service.create(req.getOrderId()));
+        return ShipmentMapper.toResponse(service.create(req.getOrderId(), req.getUserId(), req.getShippingAddress()));
     }
 
     /**
