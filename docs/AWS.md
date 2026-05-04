@@ -198,18 +198,25 @@ CREATE DATABASE scm_inventory_db;-- reserved / future
 
 ---
 
-### Step 4 — MSK Serverless (Kafka)
+### Step 4 — Kafka on ECS Fargate (KRaft mode, self-managed)
 
-**Why MSK over a Kafka container?**
-Kafka needs ZooKeeper (or KRaft), persistent volumes, and careful broker configuration. MSK Serverless removes all of that — it auto-scales, handles broker management, and integrates with IAM. For a project that uses Kafka for order→shipment and order→notification events, MSK Serverless is the right cost/complexity trade-off.
+**Why not MSK?**
+MSK Serverless requires an account-level paid subscription upgrade — unavailable on the student/free-tier account in use. MSK provisioned requires a minimum of 2 brokers at ~$0.21/hr each (~$10/day). Neither is viable for a uni project.
 
-**Why Serverless over provisioned MSK?** Provisioned MSK requires at minimum 2 brokers at ~$0.21/hr each — that's $10/day. Serverless charges per partition-hour and per GB transferred, which for a low-traffic demo is nearly free.
+**Why Kafka on ECS instead?**
+Running Kafka as a Fargate task in the same ECS cluster is functionally identical to the local docker-compose setup. Services reach it via Service Connect DNS (`kafka:9092`) — the same hostname pattern used locally. No IAM auth changes needed in any Spring Boot service.
 
-```
-# Created
-```
+**Why KRaft mode (no ZooKeeper)?**
+KRaft (Kafka Raft metadata) was introduced in Kafka 3.3 and removes the ZooKeeper dependency. One less container, simpler config, and it's the direction Kafka is moving. The `bitnami/kafka:3.7` image supports KRaft out of the box.
 
-**Bootstrap servers:** (filled in when available)
+**Persistence note:** Fargate has no persistent disk. Kafka topics and offsets are lost on container restart. For a demo this is fine — services reconnect and resume publishing on restart.
+
+**Image:** `bitnami/kafka:3.7`
+**Port:** 9092 (PLAINTEXT — internal to VPC, no TLS needed)
+**Service Connect name:** `kafka` → reachable as `kafka:9092` from all other ECS tasks
+**Bootstrap servers env var in all services:** `SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092`
+
+> This service is added to the ECS task definitions in Step 11 alongside all other services.
 
 ---
 
@@ -220,22 +227,33 @@ ECR is in the same AWS network as ECS — image pulls are fast, free within the 
 
 **Why one repo per service?** ECR repos are namespaced by image; one repo per service means independent versioning and lifecycle policies (e.g., keep last 3 tags, expire untagged images after 7 days).
 
-Repositories created:
-- `scm/api-gateway`
-- `scm/auth-service`
-- `scm/cart-service`
-- `scm/inventory-service`
-- `scm/order-service`
-- `scm/shipment-service`
-- `scm/warehouse-service`
-- `scm/notification-service`
-- `scm/document-gen-service`
-- `scm/discovery-server`
-- `scm/dashboard`
+```bash
+for svc in api-gateway auth-service cart-service inventory-service order-service \
+           shipment-service warehouse-service notification-service \
+           document-gen-service discovery-server dashboard; do
+  aws ecr create-repository \
+    --repository-name "scm/$svc" \
+    --image-scanning-configuration scanOnPush=true
+done
+```
 
-```
-# Created
-```
+**Why `scanOnPush=true`?** ECR's built-in vulnerability scanner (powered by Amazon Inspector) runs on every push for free on the basic tier. It flags known CVEs in OS packages inside the image — useful to know about even for a uni project.
+
+Repositories created (all under `310133718291.dkr.ecr.eu-north-1.amazonaws.com`):
+
+| Service | ECR URI |
+|---|---|
+| `api-gateway` | `.../scm/api-gateway` |
+| `auth-service` | `.../scm/auth-service` |
+| `cart-service` | `.../scm/cart-service` |
+| `inventory-service` | `.../scm/inventory-service` |
+| `order-service` | `.../scm/order-service` |
+| `shipment-service` | `.../scm/shipment-service` |
+| `warehouse-service` | `.../scm/warehouse-service` |
+| `notification-service` | `.../scm/notification-service` |
+| `document-gen-service` | `.../scm/document-gen-service` |
+| `discovery-server` | `.../scm/discovery-server` |
+| `dashboard` | `.../scm/dashboard` |
 
 ---
 
@@ -257,20 +275,52 @@ Repositories created:
 
 **Why needed?** Fargate needs permission to pull images from ECR and write logs to CloudWatch. The execution role is assumed by the ECS agent (not the container itself) during startup.
 
+```bash
+aws iam create-role \
+  --role-name scm-ecs-execution-role \
+  --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+
+aws iam attach-role-policy \
+  --role-name scm-ecs-execution-role \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+# Also allow execution role to inject secrets via valueFrom in task definitions
+aws iam put-role-policy \
+  --role-name scm-ecs-execution-role \
+  --policy-name scm-secrets-read \
+  --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["secretsmanager:GetSecretValue","secretsmanager:DescribeSecret"],"Resource":"arn:aws:secretsmanager:eu-north-1:310133718291:secret:scm/platform*"}]}'
+```
+
+**Result ARN:** `arn:aws:iam::310133718291:role/scm-ecs-execution-role`
+
 **Policies attached:**
-- `AmazonECSTaskExecutionRolePolicy` — managed policy covering ECR pull + CloudWatch Logs
+- `AmazonECSTaskExecutionRolePolicy` — managed policy covering ECR pull + CloudWatch Logs write
+- Inline `scm-secrets-read` — allows `secretsmanager:GetSecretValue` on `scm/platform*` so ECS can inject secret values into containers at boot via `valueFrom`
 
 #### 7b — ECS Task Role
 
 **Why separate from execution role?** The execution role is for ECS infrastructure. The task role is for application code at runtime. Keeping them separate follows least-privilege: if a service only needs SES, it gets only SES.
 
-**Policies attached:**
-- `AmazonSESFullAccess` — notification-service sends emails via SES
-- Custom inline: `secretsmanager:GetSecretValue` — to read DB passwords from Secrets Manager
+```bash
+aws iam create-role \
+  --role-name scm-ecs-task-role \
+  --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
 
+aws iam attach-role-policy \
+  --role-name scm-ecs-task-role \
+  --policy-arn arn:aws:iam::aws:policy/AmazonSESFullAccess
+
+aws iam put-role-policy \
+  --role-name scm-ecs-task-role \
+  --policy-name scm-secrets-read \
+  --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["secretsmanager:GetSecretValue","secretsmanager:DescribeSecret"],"Resource":"arn:aws:secretsmanager:eu-north-1:310133718291:secret:scm/platform*"}]}'
 ```
-# Created
-```
+
+**Result ARN:** `arn:aws:iam::310133718291:role/scm-ecs-task-role`
+
+**Policies attached:**
+- `AmazonSESFullAccess` — notification-service sends emails via SES SMTP
+- Inline `scm-secrets-read` — application code can call Secrets Manager at runtime if needed
 
 ---
 
@@ -283,19 +333,31 @@ Task definition env vars are visible in plaintext in the AWS console and in Clou
 
 Secret path: `scm/platform`
 
-```json
-{
-  "DB_PASSWORD": "...",
-  "JWT_SECRET": "...",
-  "SES_USERNAME": "...",
-  "SES_PASSWORD": "...",
-  "MSK_BOOTSTRAP_SERVERS": "..."
-}
+```bash
+aws secretsmanager create-secret \
+  --name scm/platform \
+  --description "SCM platform sensitive credentials" \
+  --secret-string '{
+    "DB_PASSWORD":  "Vq9!rT#6mL2AxP8zK7wD",
+    "DB_USERNAME":  "scmadmin",
+    "JWT_SECRET":   "logisticsSecretKeyForJwtMustBeLongEnough123456789",
+    "SES_USERNAME": "Adhams.Botmail@gmail.com",
+    "SES_PASSWORD": "tkfp vsuh kybi jwbh",
+    "RDS_HOST":     "scm.cxas028cs2m1.eu-north-1.rds.amazonaws.com"
+  }'
 ```
 
-```
-# Created
-```
+**Result ARN:** `arn:aws:secretsmanager:eu-north-1:310133718291:secret:scm/platform-wyIu28`
+
+Keys stored:
+| Key | Used by |
+|---|---|
+| `DB_PASSWORD` | All Spring Boot services via JDBC |
+| `DB_USERNAME` | All Spring Boot services via JDBC |
+| `JWT_SECRET` | `auth-service`, `api-gateway` |
+| `SES_USERNAME` | `notification-service` (SMTP login) |
+| `SES_PASSWORD` | `notification-service` (SMTP password) |
+| `RDS_HOST` | All Spring Boot services |
 
 ---
 
@@ -305,9 +367,18 @@ Secret path: `scm/platform`
 
 **Why one log group per service?** Separate retention policies, separate IAM access, easier grepping.
 
+**Why 30-day retention?** Default is "never expire" which costs indefinitely. 30 days is enough to debug any issue after a demo. Adjust with `put-retention-policy` if needed.
+
+```bash
+for svc in api-gateway auth-service cart-service inventory-service order-service \
+           shipment-service warehouse-service notification-service \
+           document-gen-service discovery-server dashboard kafka; do
+  aws logs create-log-group --log-group-name "/ecs/scm/$svc"
+  aws logs put-retention-policy --log-group-name "/ecs/scm/$svc" --retention-in-days 30
+done
 ```
-# Created
-```
+
+Log groups created (all under `/ecs/scm/`): `api-gateway`, `auth-service`, `cart-service`, `inventory-service`, `order-service`, `shipment-service`, `warehouse-service`, `notification-service`, `document-gen-service`, `discovery-server`, `dashboard`, `kafka`
 
 ---
 
@@ -320,11 +391,25 @@ ECS clusters are just logical groupings — they share no compute in Fargate (ea
 EC2 launch type requires managing EC2 instances — patching, scaling the instance fleet, paying for idle capacity. Fargate is serverless: you pay per task-second, tasks scale to zero, no EC2 management.
 
 **Service Connect namespace:** `scm.local`
-Services call each other via `http://order-service.scm.local:2501` — no Eureka needed.
+Services call each other via `http://order-service:2501` — ECS Service Connect resolves the short name within the namespace. No Eureka needed.
 
+**Why `containerInsights=enabled`?** Container Insights pushes CPU, memory, and network metrics per task to CloudWatch — useful for spotting a memory leak or a runaway service during a demo without needing Prometheus/Grafana.
+
+**Why `FARGATE_SPOT` as a capacity provider?** Spot tasks run on spare AWS capacity at up to 70% discount. For background workers (notification-service, document-gen-service) that can tolerate interruption, Spot saves money. Gateway and auth-service use on-demand FARGATE (weight=1 default).
+
+```bash
+aws ecs create-cluster \
+  --cluster-name scm-cluster \
+  --settings name=containerInsights,value=enabled \
+  --service-connect-defaults namespace=scm.local
+
+aws ecs put-cluster-capacity-providers \
+  --cluster scm-cluster \
+  --capacity-providers FARGATE FARGATE_SPOT \
+  --default-capacity-provider-strategy capacityProvider=FARGATE,weight=1
 ```
-# Created
-```
+
+**Result:** `scm-cluster` — ACTIVE
 
 ---
 
