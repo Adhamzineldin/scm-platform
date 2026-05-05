@@ -1103,3 +1103,60 @@ aws elbv2 delete-load-balancer \
 ```
 
 Full teardown commands are in [`infra/teardown.sh`](../infra/teardown.sh) (generated at end of deployment).
+
+---
+
+## Troubleshooting: ECS Service Connect + Eureka service discovery
+
+### Symptom
+
+`POST /api/auth/login` returns `{"status": 500, "error": "Internal Server Error"}` after deployment. The api-gateway logs show `No servers available for service: auth-service` from Spring Cloud LoadBalancer.
+
+### Root cause
+
+ECS Service Connect injects an Envoy proxy sidecar whose inbound listener is bound to `169.254.172.2` (a link-local address) inside every task's network namespace. Spring Cloud's `InetUtils.findFirstNonLoopbackAddress()` scans network interfaces on startup and picks up this address — it appears before the real VPC ENI address (`172.31.x.x`) in the enumeration order.
+
+The result: every service registers in Eureka with `169.254.172.2` as its IP:
+
+```
+Registered instance AUTH-SERVICE/169.254.172.2:auth-service:8081 with status UP
+```
+
+When the api-gateway resolves `lb://auth-service`, it gets `169.254.172.2:8081`. That address is the SC proxy's inbound port for auth-service's own task — it is **not routable from other tasks**. The connection fails, LoadBalancer marks the instance unhealthy, and the gateway returns 500.
+
+### What doesn't work
+
+| Approach | Why it fails |
+|---|---|
+| `SPRING_CLOUD_INETUTILS_USE__ONLY__SITE__LOCAL__INTERFACES=true` | Double underscores map to literal `_` in the property key, not to the `-` in `use-only-site-local-interfaces` |
+| `SPRING_CLOUD_INETUTILS_USE_ONLY_SITE_LOCAL_INTERFACES=true` | Spring Boot canonicalizes `USE_ONLY_SITE_LOCAL_INTERFACES` into 5 separate dot-segments, producing `spring.cloud.inetutils.use.only.site.local.interfaces` which doesn't match the 4-segment `use-only-site-local-interfaces` field |
+| `EUREKA_INSTANCE_PREFER_IP_ADDRESS=false` alone | InetUtils still resolves the hostname to `169.254.172.2` for the instance ID; the registered host/IP is unchanged |
+
+### Fix
+
+Add two env vars to **every backend service ECS task definition**:
+
+```
+EUREKA_INSTANCE_PREFER_IP_ADDRESS=false
+EUREKA_INSTANCE_HOSTNAME=<service-name>   # must match the ECS Service Connect discoveryName
+```
+
+Examples:
+- `auth-service`: `EUREKA_INSTANCE_HOSTNAME=auth-service`
+- `order-service`: `EUREKA_INSTANCE_HOSTNAME=order-service`
+- `api-gateway`: `EUREKA_INSTANCE_HOSTNAME=api-gateway`
+- (repeat for each service)
+
+### Why this works
+
+With these env vars, each service registers in Eureka with its **Service Connect DNS name** instead of the SC proxy IP. When the api-gateway resolves `lb://auth-service`, Spring Cloud LoadBalancer returns a service instance with `host=auth-service`. The gateway makes an HTTP call to `http://auth-service:8081/api/auth/...`. ECS Service Connect's DNS intercepts the lookup for `auth-service` and routes the TCP connection to a healthy auth-service task in the VPC.
+
+This correctly delegates actual load balancing to ECS Service Connect (which was designed for this), while keeping Eureka purely for service registration metadata.
+
+### Caveat
+
+The Eureka instance ID will still contain `169.254.172.2` (it is computed from `spring.cloud.client.hostname` which uses InetUtils). This is harmless — the instance ID is only used for de-registration, not for connection routing.
+
+### Task definition revisions when fix was applied
+
+All backend services were on task definition `:7` (except `document-gen-service` which was `:6`) after this fix was applied on 2026-05-05.
