@@ -47,6 +47,10 @@ const https = require('https');
 const http  = require('http');
 const { URL } = require('url');
 const { randomUUID } = require('crypto');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+
+const execFileAsync = promisify(execFile);
 
 // ── config ────────────────────────────────────────────────────────────────────
 const BASE_URL    = process.env.BASE_URL    || 'https://scm.maayn.com';
@@ -55,6 +59,13 @@ const PASSWORD    = process.env.LT_PASSWORD || 'Admin@12345';
 const CONCURRENCY = parseInt(process.env.CONCURRENCY  || '50',  10);
 const DURATION_S  = parseInt(process.env.DURATION_S   || '360', 10);
 const RAMP_S      = parseInt(process.env.RAMP_S        || '15',  10);
+const WATCH_AWS_AUTOSCALING = (process.env.WATCH_AWS_AUTOSCALING || 'true').toLowerCase() !== 'false';
+const AWS_REGION  = process.env.AWS_REGION  || 'eu-north-1';
+const AWS_CLUSTER = process.env.AWS_CLUSTER || 'scm-cluster';
+const AWS_SERVICES = (process.env.AWS_SERVICES || 'order-service,shipment-service,notification-service')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 // Sample SKUs — adjust to match your inventory data
 const SKUS = [
@@ -81,6 +92,9 @@ let token = null;
 let userId = process.env.LT_USER_ID || 1;
 let running = true;
 let activeWorkers = 0;
+let scalingWatcherTimer = null;
+let scalingWatcherEnabled = false;
+let desiredByService = new Map();
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -130,6 +144,72 @@ function request(method, path, body, authToken, authUserId) {
     if (data) req.write(data);
     req.end();
   });
+}
+
+async function runAwsJson(args) {
+  const { stdout } = await execFileAsync('aws', args, { timeout: 12_000, maxBuffer: 1024 * 1024 });
+  return JSON.parse(stdout);
+}
+
+async function fetchEcsServiceCounts() {
+  const data = await runAwsJson([
+    'ecs', 'describe-services',
+    '--cluster', AWS_CLUSTER,
+    '--services', ...AWS_SERVICES,
+    '--region', AWS_REGION,
+    '--output', 'json',
+  ]);
+
+  const services = Array.isArray(data.services) ? data.services : [];
+  return services.map((s) => ({
+    name: s.serviceName,
+    desired: Number(s.desiredCount || 0),
+    running: Number(s.runningCount || 0),
+  }));
+}
+
+async function startScalingWatcher() {
+  if (!WATCH_AWS_AUTOSCALING) return;
+  if (AWS_SERVICES.length === 0) return;
+
+  try {
+    const counts = await fetchEcsServiceCounts();
+    counts.forEach((s) => desiredByService.set(s.name, s.desired));
+    scalingWatcherEnabled = true;
+    console.log(`Autoscaling watcher ON (${AWS_REGION}/${AWS_CLUSTER}) for: ${AWS_SERVICES.join(', ')}`);
+  } catch (e) {
+    console.log(`Autoscaling watcher OFF (aws cli unavailable or permissions missing): ${e.message}`);
+    return;
+  }
+
+  scalingWatcherTimer = setInterval(async () => {
+    if (!running) return;
+    try {
+      const counts = await fetchEcsServiceCounts();
+      for (const s of counts) {
+        const oldDesired = desiredByService.get(s.name);
+        if (oldDesired == null) {
+          desiredByService.set(s.name, s.desired);
+          continue;
+        }
+        if (oldDesired !== s.desired) {
+          desiredByService.set(s.name, s.desired);
+          process.stdout.write(
+            `\n[AUTOSCALING] ${s.name} desired ${oldDesired} -> ${s.desired} (running=${s.running})\n`,
+          );
+        }
+      }
+    } catch {
+      // Keep load test running even if AWS polling intermittently fails.
+    }
+  }, 15000);
+}
+
+function stopScalingWatcher() {
+  if (scalingWatcherTimer) {
+    clearInterval(scalingWatcherTimer);
+    scalingWatcherTimer = null;
+  }
 }
 
 async function login() {
@@ -295,6 +375,8 @@ function printStats(elapsed) {
   console.log('');
   console.log('Starting workers... (Ctrl+C to stop early)');
   console.log('');
+
+  await startScalingWatcher();
   console.log('Watch autoscaling:');
   console.log('  aws ecs describe-services --cluster scm-cluster \\');
   console.log('    --services order-service shipment-service notification-service \\');
@@ -319,6 +401,7 @@ function printStats(elapsed) {
 
   await Promise.all(workerPromises);
   clearInterval(ticker);
+  stopScalingWatcher();
 
   const totalS = ((Date.now() - startTime) / 1000).toFixed(1);
   const avgRps = (stats.sent / totalS).toFixed(1);
@@ -332,4 +415,7 @@ function printStats(elapsed) {
   console.log(`Errors:      ${stats.err}`);
   console.log(`Timeouts:    ${stats.timeoutMs}`);
   console.log(`By status:   ${JSON.stringify(stats.byStatus)}`);
+  if (WATCH_AWS_AUTOSCALING && scalingWatcherEnabled) {
+    console.log('Autoscaling watcher: enabled (look for [AUTOSCALING] lines above).');
+  }
 })();
