@@ -44,6 +44,12 @@ public class JwtAuthFilter implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request,
                              HttpServletResponse response,
                              Object handler) throws Exception {
+        // OPTIONS preflight must never be blocked by JWT — the CorsFilter writes
+        // the CORS headers and the browser handles the handshake; no auth needed.
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+
         String token = extractToken(request);
         if (token == null) {
             return reject(response, "Missing or invalid Authorization header");

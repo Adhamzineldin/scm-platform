@@ -4,27 +4,27 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.reactive.CorsWebFilter;
-import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 
 import java.util.List;
 
-// Spring Cloud Gateway is WebFlux (reactive) — CorsWebFilter is required.
-// The servlet CorsFilter is silently ignored in a reactive context and sends
-// no CORS headers, causing every browser preflight to fail.
+// This gateway uses Spring Cloud Gateway MVC (servlet stack, NOT WebFlux/reactive).
+// The reactive CorsWebFilter is silently ignored in a servlet context.
+// The correct type here is the servlet CorsFilter from org.springframework.web.filter.
 @Configuration
 @ConfigurationProperties(prefix = "gateway.cors")
 public class CorsConfig {
 
     /**
-     * Comma-separated allowed origins. Defaults to * (all).
+     * Allowed origin patterns. Defaults to * (all).
      * Override via env var GATEWAY_CORS_ALLOWED_ORIGINS in production,
      * e.g. https://scm.maayn.com
      */
     private List<String> allowedOrigins = List.of("*");
 
     @Bean
-    public CorsWebFilter corsWebFilter() {
+    public CorsFilter corsFilter() {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowCredentials(true);
         // setAllowedOriginPatterns supports "*" alongside allowCredentials=true.
@@ -38,7 +38,7 @@ public class CorsConfig {
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cors);
-        return new CorsWebFilter(source);
+        return new CorsFilter(source);
     }
 
     public List<String> getAllowedOrigins() {
