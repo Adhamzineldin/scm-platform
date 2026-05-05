@@ -73,8 +73,8 @@ export default function DashboardHome() {
   })
 
   const productsQuery = useQuery({
-    queryKey: ['products'],
-    queryFn: listProducts,
+    queryKey: ['products', 'dashboard', 0, 200],
+    queryFn: () => listProducts({ page: 0, size: 200 }),
     enabled: canSeeInventory,
   })
 
@@ -85,7 +85,7 @@ export default function DashboardHome() {
   })
 
   const orders = (canSeeAllOrders ? allOrdersQuery.data?.content : myOrdersQuery.data?.content) ?? []
-  const products = productsQuery.data ?? []
+  const products = productsQuery.data?.content ?? []
   const lowStock = products.filter((p) => p.lowStock).length
 
   const statusCounts = orders.reduce<Record<string, number>>((acc, o) => {

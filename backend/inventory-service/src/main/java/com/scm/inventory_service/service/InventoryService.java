@@ -10,6 +10,10 @@ import com.scm.inventory_service.exception.ProductNotFoundException;
 import com.scm.inventory_service.mapper.ProductMapper;
 import com.scm.inventory_service.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,10 +47,9 @@ public class InventoryService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProductResponse> getAllProducts() {
-        return productRepository.findAll().stream()
-                .map(productMapper::toResponse)
-                .toList();
+    public Page<ProductResponse> getProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1), Sort.by("id").descending());
+        return productRepository.findAll(pageable).map(productMapper::toResponse);
     }
 
     @Transactional(readOnly = true)

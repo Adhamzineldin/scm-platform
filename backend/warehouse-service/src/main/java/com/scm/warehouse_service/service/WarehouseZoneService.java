@@ -7,6 +7,10 @@ import com.scm.warehouse_service.exception.ConflictException;
 import com.scm.warehouse_service.exception.ResourceNotFoundException;
 import com.scm.warehouse_service.repository.WarehouseZoneRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,10 +39,9 @@ public class WarehouseZoneService {
     }
 
     @Transactional(readOnly = true)
-    public List<WarehouseZoneResponse> getAllZones() {
-        return warehouseZoneRepository.findAll().stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<WarehouseZoneResponse> getAllZones(int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1), Sort.by("id").ascending());
+        return warehouseZoneRepository.findAll(pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

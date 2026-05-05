@@ -8,11 +8,16 @@ import { useAuthStore } from '../../store/authStore.ts'
 import { extractErrorMessage } from '../../api/axiosInstance.ts'
 
 export default function ShopPage() {
+  const PAGE_SIZE = 24
   const qc = useQueryClient()
   const userIdNum = useAuthStore((s) => s.userIdNum)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(0)
 
-  const productsQuery = useQuery({ queryKey: ['products'], queryFn: listProducts })
+  const productsQuery = useQuery({
+    queryKey: ['shop-products', page, PAGE_SIZE],
+    queryFn: () => listProducts({ page, size: PAGE_SIZE }),
+  })
 
   const addMutation = useMutation({
     mutationFn: (product: ProductResponse) =>
@@ -25,7 +30,7 @@ export default function ShopPage() {
   })
 
   const q = search.trim().toLowerCase()
-  const filtered = (productsQuery.data ?? []).filter(
+  const filtered = (productsQuery.data?.content ?? []).filter(
     (p) =>
       !q ||
       p.name.toLowerCase().includes(q) ||
@@ -51,7 +56,8 @@ export default function ShopPage() {
       ) : filtered.length === 0 ? (
         <p className="text-slate-500">No products found.</p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((p) => (
             <ProductCard
               key={p.id}
@@ -60,7 +66,31 @@ export default function ShopPage() {
               disabled={addMutation.isPending || userIdNum === null || p.quantity === 0}
             />
           ))}
-        </div>
+          </div>
+          {(productsQuery.data?.totalPages ?? 1) > 1 && (
+            <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+              <span>
+                Page {page + 1} of {productsQuery.data?.totalPages ?? 1} ({productsQuery.data?.totalElements ?? 0} products)
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+                >
+                  Prev
+                </button>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={productsQuery.data?.last ?? false}
+                  className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

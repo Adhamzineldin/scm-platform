@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { listNotificationEventState } from '../../api/adminApi.ts'
@@ -9,9 +10,18 @@ function fmt(ts?: string) {
 }
 
 export default function AdminEventDebugPage() {
+  const PAGE_SIZE = 20
+  const [kafkaPage, setKafkaPage] = useState(0)
+  const [ssePage, setSsePage] = useState(0)
   const query = useQuery({
-    queryKey: ['admin-event-state'],
-    queryFn: listNotificationEventState,
+    queryKey: ['admin-event-state', kafkaPage, ssePage, PAGE_SIZE],
+    queryFn: () =>
+      listNotificationEventState({
+        kafkaPage,
+        kafkaSize: PAGE_SIZE,
+        ssePage,
+        sseSize: PAGE_SIZE,
+      }),
     refetchInterval: 5000,
   })
 
@@ -73,6 +83,27 @@ export default function AdminEventDebugPage() {
             )}
           </tbody>
         </table>
+        {(kafkaPage > 0 || kafkaRows.length > 0) && (
+          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+            <span>Kafka page {kafkaPage + 1} (size {PAGE_SIZE})</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setKafkaPage((p) => Math.max(0, p - 1))}
+                disabled={kafkaPage === 0}
+                className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <button
+                onClick={() => setKafkaPage((p) => p + 1)}
+                disabled={kafkaRows.length < PAGE_SIZE}
+                className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -112,6 +143,27 @@ export default function AdminEventDebugPage() {
             )}
           </tbody>
         </table>
+        {(ssePage > 0 || sseRows.length > 0) && (
+          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+            <span>SSE page {ssePage + 1} (size {PAGE_SIZE})</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSsePage((p) => Math.max(0, p - 1))}
+                disabled={ssePage === 0}
+                className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <button
+                onClick={() => setSsePage((p) => p + 1)}
+                disabled={sseRows.length < PAGE_SIZE}
+                className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

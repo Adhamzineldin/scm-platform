@@ -77,7 +77,11 @@ export default function OrderDetailPage() {
   })
 
   // Resolve SKUs to product names for the items table
-  const { data: products = [] } = useQuery({ queryKey: ['products'], queryFn: listProducts })
+  const { data: productsPage } = useQuery({
+    queryKey: ['products', 'order-detail', 0, 200],
+    queryFn: () => listProducts({ page: 0, size: 200 }),
+  })
+  const products = productsPage?.content ?? []
   const productBySku: Record<string, string> = {}
   for (const p of products) productBySku[p.sku] = p.name
 

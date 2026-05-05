@@ -9,10 +9,12 @@ import { useAuthStore } from '../../store/authStore.ts'
 export default function DocumentsPage() {
   const { username, userId } = useAuthStore()
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [page, setPage] = useState(0)
+  const size = 20
 
   const ordersQuery = useQuery({
-    queryKey: ['my-orders', 0, 50],
-    queryFn: () => listMyOrders({ size: 50 }),
+    queryKey: ['my-orders', page, size, 'documents'],
+    queryFn: () => listMyOrders({ page, size }),
   })
 
   const handleDownload = async (order: OrderResponse) => {
@@ -95,6 +97,29 @@ export default function DocumentsPage() {
             )}
           </tbody>
         </table>
+        {(ordersQuery.data?.totalPages ?? 1) > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+            <span>
+              Page {page + 1} of {ordersQuery.data?.totalPages ?? 1} ({ordersQuery.data?.totalElements ?? 0} orders)
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={ordersQuery.data?.last ?? false}
+                className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

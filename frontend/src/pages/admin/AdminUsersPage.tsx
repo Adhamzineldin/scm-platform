@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Link } from 'react-router-dom'
@@ -18,10 +18,15 @@ const ROLES: Role[] = [
 ]
 
 export default function AdminUsersPage() {
+  const PAGE_SIZE = 15
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(0)
 
-  const usersQuery = useQuery({ queryKey: ['admin-users'], queryFn: listUsers })
+  const usersQuery = useQuery({
+    queryKey: ['admin-users', page, PAGE_SIZE],
+    queryFn: () => listUsers({ page, size: PAGE_SIZE }),
+  })
 
   const mutation = useMutation({
     mutationFn: ({ id, role }: { id: number; role: Role }) => updateUserRole(id, role),
@@ -34,14 +39,22 @@ export default function AdminUsersPage() {
 
   const filtered = useMemo<AdminUser[]>(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return usersQuery.data ?? []
-    return (usersQuery.data ?? []).filter(
+    const rows = usersQuery.data?.content ?? []
+    if (!q) return rows
+    return rows.filter(
       (u) =>
         u.username.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
         u.role.toLowerCase().includes(q),
     )
   }, [search, usersQuery.data])
+
+  useEffect(() => {
+    setPage(0)
+  }, [search])
+
+  const totalPages = usersQuery.data?.totalPages ?? 1
+  const isLast = usersQuery.data?.last ?? true
 
   return (
     <div className="space-y-4">
@@ -102,6 +115,29 @@ export default function AdminUsersPage() {
             )}
           </tbody>
         </table>
+        {(totalPages > 1 || page > 0) && (
+          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+            <span>
+              Page {page + 1} of {totalPages} ({usersQuery.data?.totalElements ?? 0} users)
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={isLast}
+                className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

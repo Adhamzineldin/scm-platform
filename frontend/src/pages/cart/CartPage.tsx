@@ -35,10 +35,13 @@ export default function CartPage() {
     enabled: userIdNum !== null,
   })
 
-  const productsQuery = useQuery({ queryKey: ['products'], queryFn: listProducts })
+  const productsQuery = useQuery({
+    queryKey: ['products', 'cart-lookup'],
+    queryFn: () => listProducts({ page: 0, size: 200 }),
+  })
 
   const productMap = new Map<number, ProductResponse>()
-  productsQuery.data?.forEach((p) => productMap.set(p.id, p))
+  productsQuery.data?.content?.forEach((p) => productMap.set(p.id, p))
 
   const updateMutation = useMutation({
     mutationFn: updateCartItem,
@@ -278,7 +281,7 @@ export default function CartPage() {
             className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
           >
             <option value="">— select —</option>
-            {(productsQuery.data ?? []).map((p: ProductResponse) => (
+            {(productsQuery.data?.content ?? []).map((p: ProductResponse) => (
               <option key={p.id} value={p.id}>{p.name} ({p.sku}) — ${Number(p.unitPrice).toFixed(2)}</option>
             ))}
           </select>

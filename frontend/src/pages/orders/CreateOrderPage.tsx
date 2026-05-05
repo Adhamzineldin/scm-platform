@@ -9,7 +9,10 @@ import { extractErrorMessage } from '../../api/axiosInstance.ts'
 
 export default function CreateOrderPage() {
   const navigate = useNavigate()
-  const productsQuery = useQuery({ queryKey: ['products'], queryFn: listProducts })
+  const productsQuery = useQuery({
+    queryKey: ['products', 'order-create', 0, 200],
+    queryFn: () => listProducts({ page: 0, size: 200 }),
+  })
   const [shippingAddress, setShippingAddress] = useState('')
   const [items, setItems] = useState<OrderItemRequest[]>([
     { sku: '', quantity: 1, unitPrice: 0 },
@@ -29,7 +32,7 @@ export default function CreateOrderPage() {
   }
 
   const handleSkuChange = (idx: number, sku: string) => {
-    const product = productsQuery.data?.find((p) => p.sku === sku)
+    const product = productsQuery.data?.content?.find((p) => p.sku === sku)
     updateItem(idx, { sku, unitPrice: product ? Number(product.unitPrice) : 0 })
   }
 
@@ -78,7 +81,7 @@ export default function CreateOrderPage() {
                 className="col-span-5 rounded-md border border-slate-300 px-2 py-2 text-sm"
               >
                 <option value="">Select SKU…</option>
-                {productsQuery.data?.map((p) => (
+                {productsQuery.data?.content?.map((p) => (
                   <option key={p.sku} value={p.sku}>{p.sku} — {p.name}</option>
                 ))}
               </select>

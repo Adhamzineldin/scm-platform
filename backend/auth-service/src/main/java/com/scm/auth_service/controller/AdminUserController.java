@@ -5,11 +5,12 @@ import com.scm.auth_service.dto.UserResponse;
 import com.scm.auth_service.entity.User;
 import com.scm.auth_service.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.List;
 
 /**
  * Admin-only user management. Protected by {@code SecurityConfig}:
@@ -24,8 +25,13 @@ public class AdminUserController {
 
     /** List every user — admin dashboard. */
     @GetMapping
-    public List<UserResponse> listUsers() {
-        return userRepository.findAll().stream().map(UserResponse::from).toList();
+    public Page<UserResponse> listUsers(
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size
+    ) {
+        return userRepository
+                .findAll(PageRequest.of(Math.max(page, 0), Math.max(size, 1), Sort.by("id").ascending()))
+                .map(UserResponse::from);
     }
 
     /** Change a user's role. Body: {@code { "role": "INVENTORY_MANAGER" }}. */

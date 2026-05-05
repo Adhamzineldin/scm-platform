@@ -63,7 +63,11 @@ export default function ShipmentDetailPage() {
   })
 
   // Warehouse zones for "pickup location" dropdown
-  const { data: zones = [] } = useQuery({ queryKey: ['zones'], queryFn: listZones })
+  const { data: zonesPage } = useQuery({
+    queryKey: ['zones', 'shipment-detail', 0, 200],
+    queryFn: () => listZones({ page: 0, size: 200 }),
+  })
+  const zones = zonesPage?.content ?? []
 
   // Prefill delivery address once the linked order arrives
   useEffect(() => {

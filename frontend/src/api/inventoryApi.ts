@@ -1,4 +1,5 @@
 import api from './axiosInstance.ts'
+import type { PagedResponse } from './ordersApi.ts'
 
 export interface ProductResponse {
   id: number
@@ -24,8 +25,10 @@ export interface ProductRequest {
   reorderLevel: number
 }
 
-export async function listProducts() {
-  const { data } = await api.get<ProductResponse[]>('/api/products')
+export async function listProducts(params: { page?: number; size?: number } = {}) {
+  const { data } = await api.get<PagedResponse<ProductResponse>>('/api/products', {
+    params: { page: params.page ?? 0, size: params.size ?? 20 },
+  })
   return data
 }
 

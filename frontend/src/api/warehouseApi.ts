@@ -1,4 +1,5 @@
 import api from './axiosInstance.ts'
+import type { PagedResponse } from './ordersApi.ts'
 
 export type ZoneType = 'RECEIVING' | 'STORAGE' | 'PICKING' | 'PACKING' | 'SHIPPING' | 'STAGING'
 export type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
@@ -50,8 +51,10 @@ export interface WarehouseZoneRequest {
   description?: string
 }
 
-export async function listZones(): Promise<WarehouseZoneResponse[]> {
-  const { data } = await api.get<WarehouseZoneResponse[]>('/api/warehouse/zones')
+export async function listZones(params: { page?: number; size?: number } = {}): Promise<PagedResponse<WarehouseZoneResponse>> {
+  const { data } = await api.get<PagedResponse<WarehouseZoneResponse>>('/api/warehouse/zones', {
+    params: { page: params.page ?? 0, size: params.size ?? 20 },
+  })
   return data
 }
 
@@ -60,8 +63,10 @@ export async function createZone(body: WarehouseZoneRequest): Promise<WarehouseZ
   return data
 }
 
-export async function listSkuLocations(): Promise<SkuLocationResponse[]> {
-  const { data } = await api.get<SkuLocationResponse[]>('/api/warehouse/locations')
+export async function listSkuLocations(params: { page?: number; size?: number } = {}): Promise<PagedResponse<SkuLocationResponse>> {
+  const { data } = await api.get<PagedResponse<SkuLocationResponse>>('/api/warehouse/locations', {
+    params: { page: params.page ?? 0, size: params.size ?? 20 },
+  })
   return data
 }
 
@@ -70,9 +75,17 @@ export async function createSkuLocation(body: SkuLocationRequest): Promise<SkuLo
   return data
 }
 
-export async function listPickingTasks(status?: TaskStatus): Promise<PickingTaskResponse[]> {
-  const { data } = await api.get<PickingTaskResponse[]>('/api/warehouse/tasks', {
-    params: status ? { status } : undefined,
+export async function listPickingTasks(params: {
+  status?: TaskStatus
+  page?: number
+  size?: number
+} = {}): Promise<PagedResponse<PickingTaskResponse>> {
+  const { data } = await api.get<PagedResponse<PickingTaskResponse>>('/api/warehouse/tasks', {
+    params: {
+      ...(params.status ? { status: params.status } : {}),
+      page: params.page ?? 0,
+      size: params.size ?? 20,
+    },
   })
   return data
 }

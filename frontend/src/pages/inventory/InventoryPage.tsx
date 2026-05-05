@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -12,8 +12,13 @@ import { Trash2 } from 'lucide-react'
 import { deleteProduct, listProducts, type ProductResponse } from '../../api/inventoryApi.ts'
 
 export default function InventoryPage() {
+  const PAGE_SIZE = 20
   const qc = useQueryClient()
-  const { data, isLoading } = useQuery({ queryKey: ['products'], queryFn: listProducts })
+  const [page, setPage] = useState(0)
+  const { data, isLoading } = useQuery({
+    queryKey: ['products', page, PAGE_SIZE],
+    queryFn: () => listProducts({ page, size: PAGE_SIZE }),
+  })
 
   const deleteMutation = useMutation({
     mutationFn: deleteProduct,
@@ -68,7 +73,7 @@ export default function InventoryPage() {
   )
 
   const table = useReactTable({
-    data: data ?? [],
+    data: data?.content ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
@@ -116,6 +121,29 @@ export default function InventoryPage() {
             )}
           </tbody>
         </table>
+        {(data?.totalPages ?? 1) > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+            <span>
+              Page {page + 1} of {data?.totalPages ?? 1} ({data?.totalElements ?? 0} products)
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={data?.last ?? false}
+                className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

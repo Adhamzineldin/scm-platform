@@ -8,6 +8,7 @@ import com.scm.warehouse_service.entity.TaskStatus;
 import com.scm.warehouse_service.service.PickingTaskService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -42,8 +43,12 @@ public class PickingTaskController {
 
     @GetMapping("/tasks")
     @ResponseStatus(HttpStatus.OK)
-    public List<PickingTaskResponse> getTasks(@RequestParam(required = false) TaskStatus status) {
-        return pickingTaskService.getAllTasks(status);
+    public Page<PickingTaskResponse> getTasks(
+            @RequestParam(required = false) TaskStatus status,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size
+    ) {
+        return pickingTaskService.getAllTasks(status, page, size);
     }
 
     @GetMapping("/orders/{orderId}/tasks")

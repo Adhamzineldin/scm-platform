@@ -18,6 +18,10 @@ import com.scm.warehouse_service.repository.PickingTaskRepository;
 import com.scm.warehouse_service.repository.WarehouseZoneRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -110,14 +114,13 @@ public class PickingTaskService {
     }
 
     @Transactional(readOnly = true)
-    public List<PickingTaskResponse> getAllTasks(TaskStatus status) {
-        List<PickingTask> tasks = status == null
-                ? pickingTaskRepository.findAll()
-                : pickingTaskRepository.findByStatusOrderByIdAsc(status);
+    public Page<PickingTaskResponse> getAllTasks(TaskStatus status, int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1), Sort.by("id").ascending());
+        Page<PickingTask> tasks = status == null
+                ? pickingTaskRepository.findAll(pageable)
+                : pickingTaskRepository.findByStatus(status, pageable);
 
-        return tasks.stream()
-                .map(this::toResponse)
-                .toList();
+        return tasks.map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

@@ -1,5 +1,6 @@
 import api from './axiosInstance.ts'
 import type { Role } from './authApi.ts'
+import type { PagedResponse } from './ordersApi.ts'
 
 export interface AdminUser {
   id: number
@@ -34,8 +35,10 @@ export interface AdminEventSnapshot {
   sseEvents: AdminEventState[]
 }
 
-export async function listUsers(): Promise<AdminUser[]> {
-  const { data } = await api.get<AdminUser[]>('/api/admin/users')
+export async function listUsers(params: { page?: number; size?: number } = {}): Promise<PagedResponse<AdminUser>> {
+  const { data } = await api.get<PagedResponse<AdminUser>>('/api/admin/users', {
+    params: { page: params.page ?? 0, size: params.size ?? 20 },
+  })
   return data
 }
 
@@ -44,8 +47,20 @@ export async function updateUserRole(id: number, role: Role): Promise<AdminUser>
   return data
 }
 
-export async function listNotificationEventState(): Promise<AdminEventSnapshot> {
-  const { data } = await api.get<AdminEventSnapshot>('/api/notifications/admin/event-state')
+export async function listNotificationEventState(params: {
+  kafkaPage?: number
+  kafkaSize?: number
+  ssePage?: number
+  sseSize?: number
+} = {}): Promise<AdminEventSnapshot> {
+  const { data } = await api.get<AdminEventSnapshot>('/api/notifications/admin/event-state', {
+    params: {
+      kafkaPage: params.kafkaPage ?? 0,
+      kafkaSize: params.kafkaSize ?? 20,
+      ssePage: params.ssePage ?? 0,
+      sseSize: params.sseSize ?? 20,
+    },
+  })
   return data
 }
 

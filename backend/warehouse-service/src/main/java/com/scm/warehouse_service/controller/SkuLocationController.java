@@ -5,6 +5,7 @@ import com.scm.warehouse_service.dto.SkuLocationResponse;
 import com.scm.warehouse_service.service.SkuLocationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,10 +13,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @Validated
 @RestController
@@ -33,8 +33,11 @@ public class SkuLocationController {
 
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
-    public List<SkuLocationResponse> getAllLocations() {
-        return skuLocationService.getAllLocations();
+    public Page<SkuLocationResponse> getAllLocations(
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size
+    ) {
+        return skuLocationService.getAllLocations(page, size);
     }
 
     @GetMapping("/{sku}")

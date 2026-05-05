@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { MapPin, Package, Layers, Plus } from 'lucide-react'
@@ -45,6 +45,7 @@ type Tab = 'tasks' | 'locations' | 'zones'
 const EMPTY_LOC: SkuLocationRequest = { sku: '', zoneCode: '', shelfCode: '', onHandQuantity: 0 }
 
 export default function WarehousePage() {
+  const PAGE_SIZE = 20
   const qc = useQueryClient()
   const userId = useAuthStore((s) => s.userId)
   const [tab, setTab] = useState<Tab>('tasks')
@@ -56,13 +57,29 @@ export default function WarehousePage() {
   const [locForm, setLocForm] = useState<SkuLocationRequest>(EMPTY_LOC)
   const [showZoneForm, setShowZoneForm] = useState(false)
   const [zoneForm, setZoneForm] = useState<WarehouseZoneRequest>(EMPTY_ZONE)
+  const [tasksPage, setTasksPage] = useState(0)
+  const [locationsPage, setLocationsPage] = useState(0)
+  const [zonesPage, setZonesPage] = useState(0)
 
-  const zonesQuery    = useQuery({ queryKey: ['zones'],    queryFn: listZones })
-  const locsQuery     = useQuery({ queryKey: ['skuLocs'],  queryFn: listSkuLocations })
-  const productsQuery = useQuery({ queryKey: ['products'], queryFn: listProducts })
+  const zonesQuery    = useQuery({
+    queryKey: ['zones', zonesPage, PAGE_SIZE],
+    queryFn: () => listZones({ page: zonesPage, size: PAGE_SIZE }),
+  })
+  const locsQuery     = useQuery({
+    queryKey: ['skuLocs', locationsPage, PAGE_SIZE],
+    queryFn: () => listSkuLocations({ page: locationsPage, size: PAGE_SIZE }),
+  })
+  const productsQuery = useQuery({
+    queryKey: ['products', 'lookup'],
+    queryFn: () => listProducts({ page: 0, size: 200 }),
+  })
   const tasksQuery    = useQuery({
-    queryKey: ['pickingTasks', taskFilter],
-    queryFn: () => listPickingTasks(taskFilter === 'ALL' ? undefined : taskFilter),
+    queryKey: ['pickingTasks', taskFilter, tasksPage, PAGE_SIZE],
+    queryFn: () => listPickingTasks({
+      status: taskFilter === 'ALL' ? undefined : taskFilter,
+      page: tasksPage,
+      size: PAGE_SIZE,
+    }),
     refetchInterval: 15_000,
   })
 
@@ -108,13 +125,13 @@ export default function WarehousePage() {
 
   const busy = startMut.isPending || completeMut.isPending || cancelMut.isPending
 
-  const tasks    = tasksQuery.data ?? []
+  const tasks    = tasksQuery.data?.content ?? []
   const pending  = tasks.filter((t) => t.status === 'PENDING').length
   const inProg   = tasks.filter((t) => t.status === 'IN_PROGRESS').length
 
   // SKU → product name lookup (so workers see what they're picking, not just a SKU code)
   const productBySku: Record<string, string> = {}
-  for (const p of (productsQuery.data ?? [])) productBySku[p.sku] = p.name
+  for (const p of (productsQuery.data?.content ?? [])) productBySku[p.sku] = p.name
 
   const q = taskSearch.trim().toLowerCase()
   const visibleTasks = q
@@ -127,6 +144,10 @@ export default function WarehousePage() {
 
   // Worker ID → username lookup
   const workerNames = useUserNames(tasks.map((t) => t.assignedWorkerId))
+
+  useEffect(() => {
+    setTasksPage(0)
+  }, [taskFilter])
 
   const handleAddLoc = (e: FormEvent) => {
     e.preventDefault()
@@ -251,7 +272,7 @@ export default function WarehousePage() {
                       <p className="text-sm text-slate-500">
                         {q ? `No tasks matching "${taskSearch}".` : `No tasks${taskFilter !== 'ALL' ? ` with status ${taskFilter.replace('_', ' ')}` : ''}.`}
                       </p>
-                      {!q && taskFilter === 'ALL' && locsQuery.data?.length === 0 && (
+                      {!q && taskFilter === 'ALL' && (locsQuery.data?.content ?? []).length === 0 && (
                         <p className="mt-1 text-xs text-amber-600">No SKU locations registered — tasks can't be auto-created from orders until you add locations.</p>
                       )}
                     </td>
@@ -311,6 +332,29 @@ export default function WarehousePage() {
                 )}
               </tbody>
             </table>
+            {(tasksQuery.data?.totalPages ?? 1) > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+                <span>
+                  Page {tasksPage + 1} of {tasksQuery.data?.totalPages ?? 1} ({tasksQuery.data?.totalElements ?? 0} tasks)
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTasksPage((p) => Math.max(0, p - 1))}
+                    disabled={tasksPage === 0}
+                    className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => setTasksPage((p) => p + 1)}
+                    disabled={tasksQuery.data?.last ?? false}
+                    className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -346,7 +390,7 @@ export default function WarehousePage() {
                     className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
                   >
                     <option value="">— select product —</option>
-                    {(productsQuery.data ?? []).map((p) => (
+                    {(productsQuery.data?.content ?? []).map((p) => (
                       <option key={p.id} value={p.sku}>{p.sku} — {p.name}</option>
                     ))}
                   </select>
@@ -360,7 +404,7 @@ export default function WarehousePage() {
                     className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
                   >
                     <option value="">— select zone —</option>
-                    {(zonesQuery.data ?? []).map((z) => (
+                    {(zonesQuery.data?.content ?? []).map((z) => (
                       <option key={z.id} value={z.code}>{z.code} — {z.name}</option>
                     ))}
                   </select>
@@ -419,7 +463,7 @@ export default function WarehousePage() {
               <tbody>
                 {locsQuery.isLoading ? (
                   <tr><td colSpan={4} className="p-6 text-center text-slate-400">Loading…</td></tr>
-                ) : (locsQuery.data ?? []).length === 0 ? (
+                ) : (locsQuery.data?.content ?? []).length === 0 ? (
                   <tr>
                     <td colSpan={4} className="p-10 text-center">
                       <MapPin size={32} className="mx-auto mb-2 text-slate-300" />
@@ -428,7 +472,7 @@ export default function WarehousePage() {
                     </td>
                   </tr>
                 ) : (
-                  (locsQuery.data ?? []).map((loc) => (
+                  (locsQuery.data?.content ?? []).map((loc) => (
                     <tr key={loc.id} className="border-t border-slate-100">
                       <td className="px-4 py-3 font-mono text-xs font-medium text-slate-900">{loc.sku}</td>
                       <td className="px-4 py-3">
@@ -446,6 +490,29 @@ export default function WarehousePage() {
                 )}
               </tbody>
             </table>
+            {(locsQuery.data?.totalPages ?? 1) > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+                <span>
+                  Page {locationsPage + 1} of {locsQuery.data?.totalPages ?? 1} ({locsQuery.data?.totalElements ?? 0} locations)
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setLocationsPage((p) => Math.max(0, p - 1))}
+                    disabled={locationsPage === 0}
+                    className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => setLocationsPage((p) => p + 1)}
+                    disabled={locsQuery.data?.last ?? false}
+                    className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -536,7 +603,7 @@ export default function WarehousePage() {
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {zonesQuery.isLoading && <p className="text-slate-400 text-sm col-span-3">Loading…</p>}
-            {(zonesQuery.data ?? []).map((z) => (
+            {(zonesQuery.data?.content ?? []).map((z) => (
               <div key={z.id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-sm font-semibold text-slate-900">{z.code}</span>
@@ -552,7 +619,7 @@ export default function WarehousePage() {
                 </div>
               </div>
             ))}
-            {(zonesQuery.data ?? []).length === 0 && !zonesQuery.isLoading && (
+            {(zonesQuery.data?.content ?? []).length === 0 && !zonesQuery.isLoading && (
               <div className="col-span-3 rounded-lg border border-dashed border-slate-200 p-10 text-center">
                 <Layers size={32} className="mx-auto mb-2 text-slate-300" />
                 <p className="text-sm text-slate-500">No warehouse zones yet.</p>
@@ -560,6 +627,29 @@ export default function WarehousePage() {
               </div>
             )}
           </div>
+          {(zonesQuery.data?.totalPages ?? 1) > 1 && (
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span>
+                Page {zonesPage + 1} of {zonesQuery.data?.totalPages ?? 1} ({zonesQuery.data?.totalElements ?? 0} zones)
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setZonesPage((p) => Math.max(0, p - 1))}
+                  disabled={zonesPage === 0}
+                  className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+                >
+                  Prev
+                </button>
+                <button
+                  onClick={() => setZonesPage((p) => p + 1)}
+                  disabled={zonesQuery.data?.last ?? false}
+                  className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
