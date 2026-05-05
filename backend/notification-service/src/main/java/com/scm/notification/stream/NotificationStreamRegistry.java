@@ -8,8 +8,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -18,9 +20,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class NotificationStreamRegistry {
 
     private static final long EMITTER_TIMEOUT_MS = 30L * 60L * 1000L;
+    private static final int MAX_RECENT_KAFKA_EVENTS = 100;
 
     private final Map<String, List<SseEmitter>> emittersByUser = new ConcurrentHashMap<>();
     private final Map<String, InAppNotification> latestEventByUser = new ConcurrentHashMap<>();
+    private final Deque<NotificationKafkaEventState> recentKafkaEvents = new ConcurrentLinkedDeque<>();
 
     public SseEmitter register(String userId) {
         SseEmitter emitter = new SseEmitter(EMITTER_TIMEOUT_MS);
@@ -59,6 +63,13 @@ public class NotificationStreamRegistry {
         }
     }
 
+    public void recordKafkaEvent(NotificationKafkaEventState event) {
+        recentKafkaEvents.addFirst(event);
+        while (recentKafkaEvents.size() > MAX_RECENT_KAFKA_EVENTS) {
+            recentKafkaEvents.pollLast();
+        }
+    }
+
     @Scheduled(fixedDelay = 25_000L)
     void heartbeat() {
         emittersByUser.forEach((userId, list) -> list.forEach(emitter -> {
@@ -75,6 +86,7 @@ public class NotificationStreamRegistry {
         emittersByUser.values().forEach(list -> list.forEach(SseEmitter::complete));
         emittersByUser.clear();
         latestEventByUser.clear();
+        recentKafkaEvents.clear();
     }
 
     public List<NotificationEventState> snapshotLatestEvents() {
@@ -92,6 +104,10 @@ public class NotificationStreamRegistry {
             ));
         });
         return snapshot;
+    }
+
+    public List<NotificationKafkaEventState> snapshotKafkaEvents() {
+        return List.copyOf(recentKafkaEvents);
     }
 
     private void remove(String userId, SseEmitter emitter) {
