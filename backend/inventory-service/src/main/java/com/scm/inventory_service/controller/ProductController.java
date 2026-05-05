@@ -1,5 +1,6 @@
 package com.scm.inventory_service.controller;
 
+import com.scm.inventory_service.dto.PagedResponse;
 import com.scm.inventory_service.dto.ProductRequest;
 import com.scm.inventory_service.dto.ProductResponse;
 import com.scm.inventory_service.service.InventoryService;
@@ -33,11 +34,19 @@ public class ProductController {
 
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
-    public Page<ProductResponse> getAllProducts(
+    public PagedResponse<ProductResponse> getAllProducts(
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size
     ) {
-        return inventoryService.getProducts(page, size);
+        Page<ProductResponse> result = inventoryService.getProducts(page, size);
+        return PagedResponse.<ProductResponse>builder()
+                .content(result.getContent())
+                .pageNumber(result.getNumber())
+                .pageSize(result.getSize())
+                .totalElements(result.getTotalElements())
+                .totalPages(result.getTotalPages())
+                .last(result.isLast())
+                .build();
     }
 
     @GetMapping("/{id}")
