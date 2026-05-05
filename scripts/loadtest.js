@@ -78,13 +78,26 @@ const stats = {
 };
 
 let token = null;
+let userId = process.env.LT_USER_ID || 1;
 let running = true;
 let activeWorkers = 0;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-function request(method, path, body, authToken) {
+function decodeJwtPayload(jwt) {
+  try {
+    const parts = String(jwt || '').split('.');
+    if (parts.length < 2) return null;
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function request(method, path, body, authToken, authUserId) {
   return new Promise((resolve) => {
     const url   = new URL(path, BASE_URL);
     const lib   = url.protocol === 'https:' ? https : http;
@@ -99,6 +112,7 @@ function request(method, path, body, authToken) {
       headers: {
         'Content-Type': 'application/json',
         ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        ...(authUserId ? { 'X-User-Id': String(authUserId) } : {}),
         ...(data ? { 'Content-Length': Buffer.byteLength(data) } : {}),
       },
       timeout: 10_000,
@@ -119,7 +133,7 @@ function request(method, path, body, authToken) {
 }
 
 async function login() {
-  const res = await request('POST', '/api/auth/login', { email: EMAIL, password: PASSWORD }, null);
+  const res = await request('POST', '/api/auth/login', { email: EMAIL, password: PASSWORD }, null, null);
   if (res.status !== 200) throw new Error(`Login failed with status ${res.status}`);
 
   // We need the body — redo with body capture
@@ -145,7 +159,11 @@ async function login() {
           const parsed = JSON.parse(body);
           const tok = parsed.token || parsed.accessToken || parsed.access_token;
           if (!tok) reject(new Error(`No token in response: ${body.slice(0, 200)}`));
-          else resolve(tok);
+          else {
+            const payload = decodeJwtPayload(tok) || {};
+            const uid = parsed.userId || payload.userId || payload.sub || null;
+            resolve({ token: tok, userId: uid != null ? String(uid) : null });
+          }
         } catch { reject(new Error(`Bad login JSON: ${body.slice(0, 200)}`)); }
       });
     });
@@ -191,7 +209,7 @@ async function worker(id, startTime) {
     }
 
     stats.sent++;
-    const { status, ms } = await request(method, path, body, token);
+    const { status, ms } = await request(method, path, body, token, userId);
     stats.latencies.push(ms);
 
     if (status >= 200 && status < 300) {
@@ -261,11 +279,16 @@ function printStats(elapsed) {
 
   console.log('Authenticating...');
   try {
-    token = await login();
-    console.log('Login OK. Token acquired.');
+    const auth = await login();
+    token = auth.token;
+    if (!userId && auth.userId) userId = auth.userId;
+    if (!userId) {
+      throw new Error('Could not determine user id from login/JWT. Set LT_USER_ID explicitly.');
+    }
+    console.log(`Login OK. Token acquired. userId=${userId}`);
   } catch (e) {
     console.error(`Login failed: ${e.message}`);
-    console.error('Set LT_EMAIL and LT_PASSWORD env vars to match a valid account.');
+    console.error('Set LT_EMAIL / LT_PASSWORD and (if needed) LT_USER_ID env vars to valid values.');
     process.exit(1);
   }
 
