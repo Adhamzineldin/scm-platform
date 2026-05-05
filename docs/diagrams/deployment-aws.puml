@@ -1,47 +1,119 @@
 @startuml
 skinparam shadowing false
+skinparam linetype ortho
+skinparam ArrowColor #444
+skinparam BorderColor #666
+skinparam BackgroundColor #FAFAFA
+skinparam NodeBackgroundColor #E8F4FD
+skinparam DatabaseBackgroundColor #FFF3CD
+skinparam QueueBackgroundColor #D4EDDA
+skinparam CloudBackgroundColor #F8F9FA
 
-title SCM Platform - AWS Deployment (Target)
+title SCM Platform — AWS Deployment (Implemented, eu-north-1)
 
-cloud "AWS" {
-  node "VPC" {
-    node "Public Subnet" {
-      [Application Load Balancer]
+actor "Browser\n(scm.maayn.com)" as Browser
+actor "LoadTest\nnode scripts/loadtest.js" as LT
+
+cloud "AWS (eu-north-1 / Stockholm)" {
+
+  node "VPC vpc-034e3644d0eb4001f  172.31.0.0/16" {
+
+    node "Public Subnets (3 AZs)" {
+      [Application Load Balancer\nscm-alb\n13.51.x.x / 13.62.x.x] as ALB
     }
 
-    node "Private Subnet - ECS Fargate" {
-      [dashboard task]
-      [api-gateway task]
-      [order-service worker/task]
-      [shipment-service worker/task]
-      [notification-service worker/task]
-      [other domain services]
+    node "ECS Cluster: scm-cluster (Fargate)" {
+      node "ECS Service Connect Namespace: scm.local" {
+        frame "Routing layer" {
+          [api-gateway :7080\nSpring Cloud GW MVC\n1 vCPU / 2 GB] as GW
+          [discovery-server :8761\nEureka\n0.5 vCPU / 1 GB] as DS
+          [dashboard :80\nReact + nginx\n0.5 vCPU / 0.5 GB] as DASH
+        }
+
+        frame "Domain services  (0.5 vCPU / 2 GB each)" {
+          [auth-service :8081\nJWT + Users] as AUTH
+          [order-service :2501\nKafka Producer] as ORD
+          [inventory-service :2502] as INV
+          [shipment-service :2503\nKafka Consumer] as SHIP
+          [warehouse-service :2504] as WH
+          [notification-service :2505\nKafka Consumer] as NOTIF
+          [cart-service :8083] as CART
+          [document-gen-service :3050\nNode.js / NestJS] as DOCS
+        }
+
+        frame "Event bus" {
+          [kafka :9092\napache/kafka:3.7.0\nKRaft / single broker] as KAFKA
+        }
+      }
     }
 
-    database "RDS PostgreSQL" as RDS
-    queue "MSK (Kafka)" as MSK
+    database "RDS PostgreSQL 16\nscm.cxas028cs2m1.eu-north-1.rds.amazonaws.com\n5 databases\n(db.t4g.micro Free Tier)" as RDS
   }
 
-  cloud "CloudWatch" as CW
-  cloud "Application Auto Scaling" as AAS
-  cloud "SES" as SES
+  cloud "AWS CloudWatch" as CW
+  cloud "Application Auto Scaling\nmin=1 max=10" as AAS
+  cloud "ECR\nscm/* repos" as ECR
+  cloud "Secrets Manager" as SM
 }
 
-[Application Load Balancer] --> [dashboard task]
-[Application Load Balancer] --> [api-gateway task]
+cloud "Gmail SMTP\nsmtp.gmail.com:587" as MAIL
 
-[api-gateway task] --> [other domain services]
-[order-service worker/task] --> MSK
-[shipment-service worker/task] --> MSK
-[notification-service worker/task] --> MSK
+Browser --> ALB : HTTPS :443
+LT ..> ALB : HTTPS load test\n(50 workers)
 
-[other domain services] --> RDS
-[notification-service worker/task] --> SES
+ALB --> DASH : HTTP /  (priority default)
+ALB --> GW   : HTTP /api/* (priority 10)
 
-CW --> AAS : CPU + custom Kafka lag metrics
-AAS --> [order-service worker/task]
-AAS --> [shipment-service worker/task]
-AAS --> [notification-service worker/task]
+GW --> AUTH  : lb("auth-service")
+GW --> ORD   : lb("order-service")
+GW --> INV   : lb("inventory-service")
+GW --> SHIP  : lb("shipment-service")
+GW --> WH    : lb("warehouse-service")
+GW --> NOTIF : lb("notification-service")
+GW --> CART  : lb("cart-service")
+GW --> DOCS  : lb("document-gen-service")
+GW --> DS    : Eureka register/fetch
+
+AUTH  --> DS  : Eureka heartbeat
+ORD   --> DS  : Eureka heartbeat
+SHIP  --> DS  : Eureka heartbeat
+INV   --> DS  : Eureka heartbeat
+
+ORD   --> KAFKA : produce\norder-created-topic\norder-status-changed-topic
+SHIP  --> KAFKA : consume\norder-created-topic\nproduce shipment-dispatched-topic
+NOTIF --> KAFKA : consume\norder-created-topic\norder-status-changed-topic\nshipment-dispatched-topic
+
+AUTH  --> RDS
+ORD   --> RDS
+INV   --> RDS
+SHIP  --> RDS
+WH    --> RDS
+CART  --> RDS
+
+NOTIF --> MAIL : JavaMailSender (OTP + order confirmation emails)
+
+CW --> AAS : ECSServiceAverageCPUUtilization\n(every 1 min)
+AAS --> ORD  : scale out if CPU > 60%\nscale in cooldown 180s
+AAS --> SHIP : scale out if CPU > 60%
+AAS --> NOTIF: scale out if CPU > 55%
+
+ECR --> GW    : image pull (Fargate)
+ECR --> AUTH  : image pull
+ECR --> KAFKA : image pull
+SM  --> GW    : JWT_SECRET, DB creds
+
+note bottom of GW
+  Service discovery fix (2026-05-05):
+  EUREKA_INSTANCE_HOSTNAME=api-gateway
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS=false
+  Prevents ECS SC proxy 169.254.172.2
+  from being registered in Eureka.
+end note
+
+note right of KAFKA
+  Image fix (2026-05-05):
+  bitnami/kafka:3.7 removed from DockerHub
+  → Switched to apache/kafka:3.7.0 in ECR
+end note
 
 @enduml
-

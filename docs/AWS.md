@@ -1160,3 +1160,161 @@ The Eureka instance ID will still contain `169.254.172.2` (it is computed from `
 ### Task definition revisions when fix was applied
 
 All backend services were on task definition `:7` (except `document-gen-service` which was `:6`) after this fix was applied on 2026-05-05.
+
+---
+
+## Troubleshooting: 403 Forbidden on `/api/dashboard/me` (and all protected routes after restart)
+
+### Symptom
+
+After any ECS service deployment, users who were previously logged in get `403 Forbidden` on all non-public endpoints even though their JWT is still valid.
+
+### Root cause
+
+`spring.jpa.hibernate.ddl-auto=create` was hardcoded in `auth-service/application.properties`. Every container restart (including normal ECS rolling deploys) drops and recreates all database tables. The JWT is cryptographically valid but the email it contains no longer exists in the database. Spring Security's `JwtFilter` sets `user = null` → Spring Security context stays anonymous → the `SecurityConfig` rule `.authenticated()` triggers a `403 Forbidden`.
+
+The same `create` default (via `${SPRING_JPA_HIBERNATE_DDL_AUTO:create}`) was present in order-service, inventory-service, shipment-service, and warehouse-service, causing their data to be wiped on each deploy too.
+
+### Fix
+
+1. Changed `auth-service/application.properties` from hardcoded `create` to `${SPRING_JPA_HIBERNATE_DDL_AUTO:update}`, rebuilt image, pushed to ECR.
+2. Added `SPRING_JPA_HIBERNATE_DDL_AUTO=update` env var to ECS task definitions for all affected services (order-service:9, inventory-service:9, shipment-service:9, warehouse-service:9).
+
+With `ddl-auto=update`, Hibernate checks the schema on startup and only adds new columns/tables without ever dropping existing data.
+
+### After this fix
+
+- Existing user accounts survive ECS rolling deploys
+- Users stay logged in across deployments
+- Demo seed data (orders, inventory, warehouses) persists between restarts
+- **One-time action required**: since the last `create` wiped all data, users need to re-register once. After that, no more data loss.
+
+---
+
+## Troubleshooting: Kafka container crash-loop (bitnami/kafka image not found)
+
+### Symptom
+
+Kafka ECS service has `running: 0 / desired: 1`. Service events show:
+```
+CannotPullContainerError: failed to resolve ref docker.io/bitnami/kafka:3.7: not found
+```
+
+Downstream effect: shipment-service returns 504 on write operations (Kafka producer blocks until timeout), notification-service consumers never receive events.
+
+### Root cause
+
+The `bitnami/kafka:3.7` tag (and `bitnami/kafka:latest`) no longer exists on Docker Hub. ECS Fargate tasks pull from Docker Hub on startup; with the image gone, the task can never start. There is no persistent volume, so every restart attempt is a fresh pull.
+
+### Fix
+
+1. Pulled `apache/kafka:3.7.0` from Docker Hub locally (official Apache image, available and maintained).
+2. Created ECR repository `scm/kafka`.
+3. Tagged and pushed to `310133718291.dkr.ecr.eu-north-1.amazonaws.com/scm/kafka:3.7.0`.
+4. Updated Kafka task definition (rev 3) to use the ECR image.
+5. Updated environment variables from Bitnami `KAFKA_CFG_*` prefix to official Apache `KAFKA_*` prefix:
+
+| Bitnami env var | Apache env var |
+|---|---|
+| `KAFKA_CFG_NODE_ID=1` | `KAFKA_NODE_ID=1` |
+| `KAFKA_CFG_PROCESS_ROLES=broker,controller` | `KAFKA_PROCESS_ROLES=broker,controller` |
+| `KAFKA_CFG_LISTENERS=...` | `KAFKA_LISTENERS=...` |
+| `KAFKA_CFG_ADVERTISED_LISTENERS=...` | `KAFKA_ADVERTISED_LISTENERS=...` |
+| `KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=...` | `KAFKA_CONTROLLER_QUORUM_VOTERS=...` |
+| `KAFKA_KRAFT_CLUSTER_ID=...` | `CLUSTER_ID=...` |
+
+**Lesson**: Never use Docker Hub images directly in ECS task definitions. Mirror all third-party images to ECR on first use. ECR is always reachable from Fargate (via VPC endpoint or public IP); Docker Hub is subject to rate limits and tag removal.
+
+---
+
+## Troubleshooting: Notification service not receiving Kafka events
+
+### Symptom
+
+Notification service is running (ECS shows 1/1) but no emails are sent after orders are created. No Kafka log lines appear in the service logs.
+
+### Root cause
+
+Notification-service started when Kafka was down (crash-looping due to bad image tag). Spring Kafka consumers attempt to connect on startup and enter an exponential-backoff retry loop. After many failures over hours, retry intervals grow very long. The service never successfully subscribes to topics even after Kafka is restored.
+
+### Fix
+
+Force a new deployment: `aws ecs update-service --cluster scm-cluster --service notification-service --force-new-deployment`. The new task starts after Kafka is healthy and connects immediately.
+
+**Prevention**: If Kafka restarts frequently, configure `spring.kafka.consumer.reconnect-backoff-ms=1000` and `spring.kafka.consumer.reconnect-backoff-max-ms=10000` so the retry window doesn't grow indefinitely.
+
+---
+
+## Troubleshooting: document-gen-service 500 on POST /api/documents/order-receipt
+
+### Root cause
+
+The NestJS `EurekaService` in document-gen-service had the same `169.254.172.2` Eureka registration bug as the Spring Boot services, but implemented differently. The `getIpAddress()` method in `src/eureka/eureka.service.ts` scanned `os.networkInterfaces()` and returned the first non-internal IPv4, which was the ECS SC proxy address. The gateway's `lb("document-gen-service")` got `169.254.172.2:3050` and the connection failed.
+
+### Fix
+
+1. Updated `EurekaService` constructor to read `EUREKA_INSTANCE_HOSTNAME` env var (falling back to `os.hostname()`).
+2. Fixed `getIpAddress()` to skip `169.254.x.x` addresses.
+3. Updated Eureka registration body to use `this.hostname` (SC DNS name) for `hostName` field.
+4. Rebuilt image, pushed to ECR, force-redeployed.
+
+---
+
+## Performance tuning: JVM heap and CPU allocation
+
+### Problem
+
+Spring Boot services were allocated 512 CPU units (0.5 vCPU) and 1024 MB RAM. The JVM default heap left less than 300 MB for application code, causing frequent GC pauses and slow response times (first-request latencies > 5s, steady-state p99 > 2s).
+
+### Fix
+
+Applied to all Spring Boot services via task definition update (2026-05-05):
+
+- Memory: `1024 MB → 2048 MB` for all Spring Boot services
+- CPU: `512 (0.5 vCPU) → 1024 (1 vCPU)` for api-gateway only (critical request path)
+- JVM flags: `JAVA_TOOL_OPTIONS=-Xmx1536m -Xms256m -XX:+UseG1GC`
+
+The `JAVA_TOOL_OPTIONS` env var is read automatically by the JVM (Java 9+) without any Dockerfile change. G1GC improves pause-time predictability for web-service workloads.
+
+---
+
+## Load testing and autoscaling
+
+### Test script
+
+`scripts/loadtest.js` — pure Node.js, no dependencies, runs with `node scripts/loadtest.js`.
+
+| Env var | Default | Notes |
+|---|---|---|
+| `BASE_URL` | `https://scm.maayn.com` | Target |
+| `LT_EMAIL` | `admin@scm.local` | Must be an existing account |
+| `LT_PASSWORD` | `Admin@12345` | Default bootstrap admin password |
+| `CONCURRENCY` | `50` | Workers. ≥50 needed to saturate 0.5 vCPU |
+| `DURATION_S` | `360` | 6 min. ECS needs ~3 min to detect and act |
+| `RAMP_S` | `15` | Quick ramp to spike CPU fast |
+
+Traffic mix: 80% `POST /api/orders`, 10% `GET /api/orders`, 5% `GET /api/shipments`, 5% `GET /api/inventory`.
+
+### Autoscaling timeline
+
+```
+T+0s   — test starts; CPU climbs on order-service
+T+60s  — CloudWatch publishes first 1-min ECSServiceAverageCPUUtilization datapoint
+T+90s  — Application Auto Scaling detects breach of 60% target, fires scale-out
+T+120s — ECS launches a new order-service Fargate task
+T+170s — Spring Boot starts on new task (50-90s JVM startup)
+T+210s — New task registers with Eureka, ALB marks it healthy
+T+300s — With 2 tasks running, CPU per task drops; scale-in cooldown starts (180s)
+T+480s — After sustained low CPU, scale-in fires (back to 1 task)
+```
+
+### Watch autoscaling live
+
+```bash
+watch -n 10 "aws ecs describe-services \
+  --cluster scm-cluster \
+  --services order-service shipment-service notification-service \
+  --region eu-north-1 \
+  --query 'services[*].{name:serviceName,running:runningCount,desired:desiredCount}' \
+  --output table"
+```

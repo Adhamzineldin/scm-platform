@@ -1,31 +1,44 @@
 #!/usr/bin/env node
 /**
  * SCM Platform load test — drives order/shipment/inventory traffic to trigger
- * ECS target-tracking autoscaling (CPU > 60% on order-service/shipment-service,
- * Kafka consumer-lag > 200 on order-service).
+ * ECS target-tracking autoscaling (CPU > 60% on order-service/shipment-service).
+ *
+ * Autoscaling thresholds (from infra/ecs/worker-autoscaling/target-tracking-policies.json):
+ *   order-service:        CPU > 60%  →  scale out (cooldown 60s in, 180s out)
+ *   shipment-service:     CPU > 60%  →  scale out
+ *   notification-service: CPU > 55%  →  scale out
+ *   All three also scale on Kafka consumer lag (requires custom CloudWatch metric).
  *
  * Usage:
- *   node scripts/loadtest.js [options]
+ *   node scripts/loadtest.js
  *
  * Options (env vars):
  *   BASE_URL       default: https://scm.maayn.com
  *   LT_EMAIL       default: admin@scm.local
  *   LT_PASSWORD    default: Admin@12345
- *   CONCURRENCY    default: 20   (parallel workers)
- *   DURATION_S     default: 300  (5 min — long enough for ECS to react)
- *   RAMP_S         default: 30   (ramp-up before full concurrency)
+ *   CONCURRENCY    default: 50   (parallel workers — needs ≥50 to saturate 0.5 vCPU)
+ *   DURATION_S     default: 360  (6 min — ECS needs ~3min to detect + act on CPU spike)
+ *   RAMP_S         default: 15   (quick ramp so CPU spikes fast enough to be detected)
  *
  * What it does:
- *   70% — POST /api/orders  (writes, triggers Kafka, drives CPU + consumer lag)
- *   15% — GET  /api/orders  (read traffic on order-service)
- *   10% — GET  /api/shipments
+ *   80% — POST /api/orders  (writes + DB + Kafka produces → high CPU on order-service)
+ *   10% — GET  /api/orders  (read traffic)
+ *    5% — GET  /api/shipments
  *    5% — GET  /api/inventory
  *
- * Watch autoscaling in real time:
- *   aws ecs describe-services --cluster scm-cluster \
+ * Watch autoscaling (run in a separate terminal while test runs):
+ *   watch -n 10 "aws ecs describe-services --cluster scm-cluster \
  *     --services order-service shipment-service notification-service \
  *     --region eu-north-1 \
- *     --query 'services[*].{name:serviceName,running:runningCount,desired:desiredCount}'
+ *     --query 'services[*].{name:serviceName,running:runningCount,desired:desiredCount}' \
+ *     --output table"
+ *
+ * Typical timeline:
+ *   T+0s   — test starts, CPU climbs
+ *   T+60s  — CloudWatch aggregates 1-min CPU metrics, sees > 60%
+ *   T+90s  — ECS autoscaler fires scale-out, launches new task
+ *   T+150s — new Spring Boot task starts (50-90s startup)
+ *   T+180s — new task RUNNING, ECS registers it as healthy
  */
 
 'use strict';
@@ -39,9 +52,9 @@ const { randomUUID } = require('crypto');
 const BASE_URL    = process.env.BASE_URL    || 'https://scm.maayn.com';
 const EMAIL       = process.env.LT_EMAIL    || 'admin@scm.local';
 const PASSWORD    = process.env.LT_PASSWORD || 'Admin@12345';
-const CONCURRENCY = parseInt(process.env.CONCURRENCY  || '20',  10);
-const DURATION_S  = parseInt(process.env.DURATION_S   || '300', 10);
-const RAMP_S      = parseInt(process.env.RAMP_S        || '30',  10);
+const CONCURRENCY = parseInt(process.env.CONCURRENCY  || '50',  10);
+const DURATION_S  = parseInt(process.env.DURATION_S   || '360', 10);
+const RAMP_S      = parseInt(process.env.RAMP_S        || '15',  10);
 
 // Sample SKUs — adjust to match your inventory data
 const SKUS = [
@@ -167,9 +180,9 @@ async function worker(id, startTime) {
     const roll = Math.random();
     let method, path, body;
 
-    if (roll < 0.70) {
+    if (roll < 0.80) {
       method = 'POST'; path = '/api/orders'; body = buildOrderPayload();
-    } else if (roll < 0.85) {
+    } else if (roll < 0.90) {
       method = 'GET';  path = '/api/orders';
     } else if (roll < 0.95) {
       method = 'GET';  path = '/api/shipments';
@@ -191,8 +204,8 @@ async function worker(id, startTime) {
 
     stats.byStatus[status] = (stats.byStatus[status] || 0) + 1;
 
-    // brief pause so we don't saturate the local network stack
-    await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+    // minimal pause — just enough to yield the event loop, not throttle throughput
+    await new Promise(r => setTimeout(r, 10 + Math.random() * 20));
   }
 
   activeWorkers--;

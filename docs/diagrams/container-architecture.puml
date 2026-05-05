@@ -1,62 +1,98 @@
 @startuml
 skinparam shadowing false
 skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam ArrowColor #444
+skinparam BorderColor #666
 
-title SCM Platform - Container Architecture
+title SCM Platform — Container Architecture (as deployed on ECS Fargate)
 
-node "Frontend" {
-  [Dashboard (React + Nginx)] as Dashboard
+node "Client" {
+  [Browser / Mobile] as Client
 }
 
-node "Backend" {
-  [API Gateway]
-  [Auth Service]
-  [Order Service]
-  [Inventory Service]
-  [Warehouse Service]
-  [Shipment Service]
-  [Notification Service]
-  [Cart Service]
-  [Document Gen Service]
-  [Discovery Server]
+node "ECS Fargate — scm-cluster" {
+  node "Ingress" {
+    [ALB :443\nscm-alb] as ALB
+    [API Gateway :7080\nSpring Cloud GW MVC\nJWT validation\nEureka lb() routing] as GW
+    [Dashboard :80\nReact + nginx\nRuntime config via /config.js] as DASH
+  }
+
+  node "Auth & Identity" {
+    [Auth Service :8081\nJWT issue/verify\nOTP via Gmail] as AUTH
+  }
+
+  node "Domain Services" {
+    [Order Service :2501\nOrder lifecycle\nKafka producer] as ORD
+    [Inventory Service :2502\nStock management] as INV
+    [Warehouse Service :2504\nPicking tasks] as WH
+    [Shipment Service :2503\nTracking\nKafka consumer] as SHIP
+    [Cart Service :8083] as CART
+    [Document Gen :3050\nNode.js / NestJS\nPDF generation] as DOCS
+  }
+
+  node "Async / Notifications" {
+    [Notification Service :2505\nKafka consumer\nEmail dispatch] as NOTIF
+    [Kafka :9092\napache/kafka 3.7.0\nKRaft, single broker] as KAFKA
+  }
+
+  node "Service Discovery" {
+    [Discovery Server :8761\nEureka standalone] as DS
+    note right of DS
+      Each service registers via:
+      EUREKA_INSTANCE_HOSTNAME=<name>
+      (ECS SC DNS name, not IP)
+    end note
+  }
 }
 
-queue "Kafka / MSK" as Kafka
-database "Postgres / RDS" as Postgres
+database "RDS PostgreSQL 16\n5 databases" as PG
+cloud "Gmail SMTP\nsmtp.gmail.com:587" as MAIL
+cloud "CloudWatch + App Auto Scaling" as CW
 
-Dashboard --> [API Gateway]
-[API Gateway] --> [Auth Service]
-[API Gateway] --> [Order Service]
-[API Gateway] --> [Inventory Service]
-[API Gateway] --> [Warehouse Service]
-[API Gateway] --> [Shipment Service]
-[API Gateway] --> [Notification Service]
-[API Gateway] --> [Cart Service]
-[API Gateway] --> [Document Gen Service]
+Client --> ALB : HTTPS
+ALB --> DASH   : / (default)
+ALB --> GW     : /api/*
 
-[Order Service] --> [Inventory Service] : reserve stock
-[Order Service] --> [Warehouse Service] : create picking task
-[Order Service] --> Kafka : order-created/status/ready events
-[Warehouse Service] --> Kafka : warehouse-order-packed
-[Shipment Service] --> Kafka : shipment-dispatched
-[Notification Service] <-- Kafka : email-trigger events
+GW --> AUTH  : /api/auth/**, /api/users/**\n/api/admin/**, /api/dashboard/**
+GW --> ORD   : /api/orders/**
+GW --> INV   : /api/inventory/**
+GW --> WH    : /api/warehouse/**
+GW --> SHIP  : /api/shipments/**
+GW --> CART  : /api/carts/**
+GW --> DOCS  : /api/documents/**
+GW --> NOTIF : /api/notifications/**
+GW --> DS    : register + fetch
 
-[Auth Service] --> Postgres
-[Order Service] --> Postgres
-[Inventory Service] --> Postgres
-[Warehouse Service] --> Postgres
-[Shipment Service] --> Postgres
-[Cart Service] --> Postgres
+ORD  --> INV : reserve stock (HTTP via lb())
+ORD  --> WH  : create picking task (HTTP via lb())
+ORD  --> SHIP: create shipment (HTTP via lb())
 
-[API Gateway] --> [Discovery Server]
-[Auth Service] --> [Discovery Server]
-[Order Service] --> [Discovery Server]
-[Inventory Service] --> [Discovery Server]
-[Warehouse Service] --> [Discovery Server]
-[Shipment Service] --> [Discovery Server]
-[Notification Service] --> [Discovery Server]
-[Cart Service] --> [Discovery Server]
-[Document Gen Service] --> [Discovery Server]
+ORD   -[#E06C00]-> KAFKA : order-created-topic\norder-status-changed-topic
+WH    -[#E06C00]-> KAFKA : warehouse-order-packed
+SHIP  -[#E06C00]-> KAFKA : shipment-dispatched-topic
+NOTIF <-[#E06C00]- KAFKA : order-created, order-status-changed\nshipment-dispatched
+
+AUTH  --> PG
+ORD   --> PG
+INV   --> PG
+WH    --> PG
+SHIP  --> PG
+CART  --> PG
+
+NOTIF --> MAIL : email notifications
+
+AUTH  --> DS
+ORD   --> DS
+INV   --> DS
+SHIP  --> DS
+WH    --> DS
+NOTIF --> DS
+CART  --> DS
+DOCS  --> DS
+
+CW --> ORD   : autoscale CPU > 60%
+CW --> SHIP  : autoscale CPU > 60%
+CW --> NOTIF : autoscale CPU > 55%
 
 @enduml
-
