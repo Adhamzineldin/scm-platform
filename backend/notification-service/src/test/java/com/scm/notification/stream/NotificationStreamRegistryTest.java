@@ -1,6 +1,7 @@
 package com.scm.notification.stream;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.Instant;
 
@@ -49,6 +50,28 @@ class NotificationStreamRegistryTest {
         assertThat(snapshot.get(0).topic()).isEqualTo("order-created-topic");
         assertThat(snapshot.get(0).type()).isEqualTo("ORDER_CREATED");
         assertThat(snapshot.get(0).orderId()).isEqualTo(77L);
+    }
+
+    @Test
+    void reRegisterKeepsOnlyOneActiveSubscriberPerUser() {
+        NotificationStreamRegistry registry = new NotificationStreamRegistry();
+
+        SseEmitter first = registry.register("7");
+        SseEmitter second = registry.register("7");
+
+        registry.publish("7", new InAppNotification(
+                "ORDER_CONFIRMED",
+                88L,
+                "7",
+                "Confirmed",
+                "Order #88 confirmed",
+                Instant.parse("2026-05-05T00:00:00Z")
+        ));
+
+        var snapshot = registry.snapshotLatestEvents();
+        assertThat(snapshot).hasSize(1);
+        assertThat(snapshot.get(0).activeSubscribers()).isEqualTo(1);
+        assertThat(first).isNotSameAs(second);
     }
 }
 

@@ -5,6 +5,11 @@ import { useAuthStore } from '../store/authStore.ts'
 import { useNotificationStore } from '../store/notificationStore.ts'
 import { API_BASE_URL } from '../api/axiosInstance.ts'
 
+let activeEventSource: EventSource | null = null
+let activeSessionKey: string | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let connectInFlight = false
+
 interface SsePayload {
   type?: string
   orderId?: number
@@ -21,14 +26,61 @@ export function useSSENotifications() {
   const queryClient = useQueryClient()
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const esRef = useRef<EventSource | null>(null)
+  const sessionKey = token && userId ? `${userId}:${token}` : null
 
   useEffect(() => {
-    if (!token || !userId) return
+    if (!token || !userId || !sessionKey) return
 
     let destroyed = false
 
-    const connect = () => {
+    const clearRetry = () => {
+      if (retryRef.current) {
+        clearTimeout(retryRef.current)
+        retryRef.current = null
+      }
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+      }
+    }
+
+    const closeSource = () => {
+      esRef.current?.close()
+      if (activeEventSource === esRef.current) {
+        activeEventSource = null
+      }
+      esRef.current = null
+    }
+
+    const scheduleReconnect = () => {
       if (destroyed) return
+      clearRetry()
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null
+        connect()
+      }, 5000)
+      retryRef.current = reconnectTimer
+    }
+
+    const connect = () => {
+      if (destroyed || connectInFlight) return
+
+      const current = esRef.current ?? activeEventSource
+      if (
+        activeSessionKey === sessionKey &&
+        current &&
+        (current.readyState === EventSource.OPEN || current.readyState === EventSource.CONNECTING)
+      ) {
+        esRef.current = current
+        return
+      }
+
+      connectInFlight = true
+      clearRetry()
+      closeSource()
+      if (activeEventSource && activeEventSource !== esRef.current) {
+        activeEventSource.close()
+      }
 
       const url = `${API_BASE_URL}/api/notifications/stream?userId=${encodeURIComponent(
         userId,
@@ -36,6 +88,8 @@ export function useSSENotifications() {
 
       const es = new EventSource(url)
       esRef.current = es
+      activeEventSource = es
+      activeSessionKey = sessionKey
 
       const processPayload = (raw: string) => {
         try {
@@ -70,17 +124,29 @@ export function useSSENotifications() {
 
       es.onmessage = (event) => processPayload(event.data)
 
+      es.onopen = () => {
+        connectInFlight = false
+        clearRetry()
+      }
+
       const eventNames = ['ORDER_CONFIRMED', 'ORDER_STATUS_UPDATED', 'SHIPMENT_DISPATCHED', 'SHIPMENT_DELIVERED']
       eventNames.forEach((eventName) => {
         es.addEventListener(eventName, (event) => processPayload((event as MessageEvent).data))
       })
 
       es.onerror = () => {
-        es.close()
-        esRef.current = null
+        connectInFlight = false
+        if (esRef.current === es) {
+          closeSource()
+        }
+        if (activeEventSource === es) {
+          activeEventSource = null
+        }
+        if (activeSessionKey === sessionKey) {
+          activeSessionKey = null
+        }
         if (!destroyed) {
-          // Reconnect after 5 seconds
-          retryRef.current = setTimeout(connect, 5000)
+          scheduleReconnect()
         }
       }
     }
@@ -89,9 +155,12 @@ export function useSSENotifications() {
 
     return () => {
       destroyed = true
-      if (retryRef.current) clearTimeout(retryRef.current)
-      esRef.current?.close()
-      esRef.current = null
+      connectInFlight = false
+      clearRetry()
+      closeSource()
+      if (activeSessionKey === sessionKey) {
+        activeSessionKey = null
+      }
     }
-  }, [token, userId, addNotification, queryClient])
+  }, [token, userId, sessionKey, addNotification, queryClient])
 }

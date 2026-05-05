@@ -12,7 +12,6 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -22,13 +21,20 @@ public class NotificationStreamRegistry {
     private static final long EMITTER_TIMEOUT_MS = 5L * 60L * 1000L;
     private static final int MAX_RECENT_KAFKA_EVENTS = 100;
 
-    private final Map<String, List<SseEmitter>> emittersByUser = new ConcurrentHashMap<>();
+    private final Map<String, SseEmitter> emittersByUser = new ConcurrentHashMap<>();
     private final Map<String, InAppNotification> latestEventByUser = new ConcurrentHashMap<>();
     private final Deque<NotificationKafkaEventState> recentKafkaEvents = new ConcurrentLinkedDeque<>();
 
     public SseEmitter register(String userId) {
         SseEmitter emitter = new SseEmitter(EMITTER_TIMEOUT_MS);
-        emittersByUser.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>()).add(emitter);
+        SseEmitter previous = emittersByUser.put(userId, emitter);
+        if (previous != null) {
+            try {
+                previous.complete();
+            } catch (Exception ignored) {
+                // Best-effort cleanup of stale SSE stream.
+            }
+        }
 
         emitter.onCompletion(() -> remove(userId, emitter));
         emitter.onTimeout(() -> remove(userId, emitter));
@@ -41,25 +47,23 @@ public class NotificationStreamRegistry {
         }
 
         log.info("SSE subscriber attached for userId={} (active={})",
-                userId, emittersByUser.get(userId).size());
+                userId, emittersByUser.containsKey(userId) ? 1 : 0);
         return emitter;
     }
 
     public void publish(String userId, InAppNotification payload) {
         latestEventByUser.put(userId, payload);
 
-        List<SseEmitter> targets = emittersByUser.get(userId);
-        if (targets == null || targets.isEmpty()) {
+        SseEmitter target = emittersByUser.get(userId);
+        if (target == null) {
             log.debug("No active SSE subscribers for userId={}, skipping realtime push", userId);
             return;
         }
-        for (SseEmitter emitter : targets) {
-            try {
-                emitter.send(SseEmitter.event().name(payload.type()).data(payload));
-            } catch (IOException | IllegalStateException ex) {
-                log.warn("Failed to push to SSE subscriber for userId={}: {}", userId, ex.getMessage());
-                remove(userId, emitter);
-            }
+        try {
+            target.send(SseEmitter.event().name(payload.type()).data(payload));
+        } catch (IOException | IllegalStateException ex) {
+            log.warn("Failed to push to SSE subscriber for userId={}: {}", userId, ex.getMessage());
+            remove(userId, target);
         }
     }
 
@@ -72,18 +76,18 @@ public class NotificationStreamRegistry {
 
     @Scheduled(fixedDelay = 25_000L)
     void heartbeat() {
-        emittersByUser.forEach((userId, list) -> list.forEach(emitter -> {
+        emittersByUser.forEach((userId, emitter) -> {
             try {
                 emitter.send(SseEmitter.event().comment("ping"));
             } catch (IOException | IllegalStateException ex) {
                 remove(userId, emitter);
             }
-        }));
+        });
     }
 
     @PreDestroy
     void shutdown() {
-        emittersByUser.values().forEach(list -> list.forEach(SseEmitter::complete));
+        emittersByUser.values().forEach(SseEmitter::complete);
         emittersByUser.clear();
         latestEventByUser.clear();
         recentKafkaEvents.clear();
@@ -92,7 +96,7 @@ public class NotificationStreamRegistry {
     public List<NotificationEventState> snapshotLatestEvents() {
         List<NotificationEventState> snapshot = new ArrayList<>();
         latestEventByUser.forEach((userId, payload) -> {
-            int subscribers = emittersByUser.getOrDefault(userId, List.of()).size();
+            int subscribers = emittersByUser.containsKey(userId) ? 1 : 0;
             snapshot.add(new NotificationEventState(
                     userId,
                     payload.type(),
@@ -111,9 +115,6 @@ public class NotificationStreamRegistry {
     }
 
     private void remove(String userId, SseEmitter emitter) {
-        List<SseEmitter> list = emittersByUser.get(userId);
-        if (list == null) return;
-        list.remove(emitter);
-        if (list.isEmpty()) emittersByUser.remove(userId);
+        emittersByUser.computeIfPresent(userId, (ignored, current) -> current == emitter ? null : current);
     }
 }
