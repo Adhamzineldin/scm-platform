@@ -16,7 +16,7 @@ import java.util.List;
  * Seeds demo accounts for every role so the full system can be demoed.
  * Runs after AdminSeeder (@Order 1) so admin is already ID=1.
  *
- * Resulting IDs (predictable with ddl-auto=create):
+ * Resulting IDs are predictable only in a fresh local database:
  *   1  admin            ADMIN
  *   2  alice            CUSTOMER
  *   3  bob              CUSTOMER

@@ -18,12 +18,12 @@ import java.util.UUID;
 /**
  * Seeds demo orders covering every order status so the full workflow is visible.
  *
- * User IDs are predictable because auth-service uses ddl-auto=create and seeds
+ * User IDs are predictable only in a fresh local DB where auth-service seeds
  * users in fixed order:
  *   2=alice, 3=bob, 4=carol, 5=david (CUSTOMER)
  *   8=grace.warehouse (WAREHOUSE_SPECIALIST), 9=henry.shipment (SHIPMENT_LEAD)
  *
- * Order IDs (predictable with ddl-auto=create + seeding in fixed order):
+ * Order IDs (predictable only with a fresh DB + fixed seeding order):
  *   1  alice   VALIDATED   waiting for warehouse picking
  *   2  bob     VALIDATED   waiting for warehouse picking
  *   3  carol   PICKED      picked, ready for dispatch

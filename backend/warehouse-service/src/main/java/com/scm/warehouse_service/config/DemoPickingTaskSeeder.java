@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * Seeds completed picking tasks for orders #3-7 (PICKED and DISPATCHED).
- * Order IDs are predictable because order-service uses ddl-auto=create.
+ * Order IDs are predictable only in a fresh local DB seeding run.
  *
  * @Order(2) ensures zones + SKU locations (Order 1) are seeded first.
  */
