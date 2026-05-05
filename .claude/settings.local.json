@@ -36,7 +36,20 @@
       "Bash(aws ecs *)",
       "Bash(python3 -c ' *)",
       "Bash(wait)",
-      "Bash(aws ecr describe-repositories *)"
+      "Bash(aws ecr describe-repositories *)",
+      "Bash(mvn dependency:resolve -q)",
+      "Bash(jar -tf ~/.m2/repository/org/springframework/cloud/spring-cloud-gateway-server-webmvc/5.0.1/spring-cloud-gateway-server-webmvc-5.0.1.jar)",
+      "Bash(unzip -l ~/.m2/repository/org/springframework/cloud/spring-cloud-gateway-server-webmvc/5.0.1/spring-cloud-gateway-server-webmvc-5.0.1.jar)",
+      "Bash(unzip -p '~/.m2/repository/org/springframework/cloud/spring-cloud-gateway-server-webmvc/5.0.1/spring-cloud-gateway-server-webmvc-5.0.1-sources.jar' org/springframework/cloud/gateway/server/mvc/GatewayServerMvcAutoConfiguration.java)",
+      "Bash(unzip -l /home/adhamzineldin/.m2/repository/org/springframework/boot/spring-boot-autoconfigure/4.0.5/spring-boot-autoconfigure-4.0.5-sources.jar)",
+      "Bash(unzip -l ~/.m2/repository/org/springframework/boot/spring-boot-http-client/4.0.5/spring-boot-http-client-4.0.5-sources.jar)",
+      "Bash(unzip *)",
+      "Bash(mvn compile *)",
+      "Bash(aws configure *)",
+      "Bash(aws ecr *)",
+      "Bash(docker login *)",
+      "Bash(docker tag *)",
+      "Bash(docker push *)"
     ]
   }
 }

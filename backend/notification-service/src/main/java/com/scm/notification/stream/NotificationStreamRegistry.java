@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class NotificationStreamRegistry {
 
-    private static final long EMITTER_TIMEOUT_MS = 30L * 60L * 1000L;
+    private static final long EMITTER_TIMEOUT_MS = 5L * 60L * 1000L;
     private static final int MAX_RECENT_KAFKA_EVENTS = 100;
 
     private final Map<String, List<SseEmitter>> emittersByUser = new ConcurrentHashMap<>();
