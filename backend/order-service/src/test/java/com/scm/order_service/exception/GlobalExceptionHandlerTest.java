@@ -95,15 +95,28 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("should handle FeignException with 503 status")
+    @DisplayName("should handle FeignException with 503 for connection failures")
     void shouldHandleFeignException() {
         feign.FeignException ex = mock(feign.FeignException.class);
         when(ex.getMessage()).thenReturn("Connection refused");
+        when(ex.status()).thenReturn(-1); // -1 = connection-level failure
 
-        ErrorResponse response = handler.handleFeignException(ex, request);
+        var response = handler.handleFeignException(ex, request);
 
-        assertThat(response.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
-        assertThat(response.getMessage()).contains("downstream service");
+        assertThat(response.getStatusCode().value()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
+        assertThat(response.getBody().getMessage()).contains("downstream service");
+    }
+
+    @Test
+    @DisplayName("should handle FeignException with 409 upstream as CONFLICT")
+    void shouldHandleFeignExceptionConflict() {
+        feign.FeignException ex = mock(feign.FeignException.class);
+        when(ex.getMessage()).thenReturn("Out of stock");
+        when(ex.status()).thenReturn(409);
+
+        var response = handler.handleFeignException(ex, request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(HttpStatus.CONFLICT.value());
     }
 
     @Test

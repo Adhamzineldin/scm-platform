@@ -51,7 +51,12 @@
       "Bash(docker tag *)",
       "Bash(docker push *)",
       "Bash(python3 -m json.tool)",
-      "Bash(awk 'NR==261')"
+      "Bash(awk 'NR==261')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d,indent=2\\)\\)\")",
+      "Bash(xargs '-I{}' aws ecs describe-tasks --cluster scm-cluster --tasks '{}' --region eu-north-1 --query 'tasks[0].{stopCode:stopCode,reason:stoppedReason,containers:containers[0].{reason:reason,exitCode:exitCode}}' --output json)",
+      "Bash(npm run *)",
+      "Bash(node scripts/loadtest.js)",
+      "Bash(aws logs *)"
     ]
   }
 }

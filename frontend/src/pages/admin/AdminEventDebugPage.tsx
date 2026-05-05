@@ -15,8 +15,8 @@ export default function AdminEventDebugPage() {
     refetchInterval: 5000,
   })
 
-  const kafkaRows = query.data?.kafkaEvents ?? []
-  const sseRows = query.data?.sseEvents ?? []
+  const kafkaRows = Array.isArray(query.data?.kafkaEvents) ? query.data.kafkaEvents : []
+  const sseRows = Array.isArray(query.data?.sseEvents) ? query.data.sseEvents : []
 
   return (
     <div className="space-y-4">

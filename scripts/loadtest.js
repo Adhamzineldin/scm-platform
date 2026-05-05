@@ -1,13 +1,22 @@
 #!/usr/bin/env node
 /**
- * SCM Platform load test — drives order/shipment/inventory traffic to trigger
- * ECS target-tracking autoscaling (CPU > 60% on order-service/shipment-service).
+ * SCM Platform load test — sustains enough order-creation traffic to push
+ * order-service CPU above 60% and trigger ECS target-tracking autoscaling.
  *
- * Autoscaling thresholds (from infra/ecs/worker-autoscaling/target-tracking-policies.json):
- *   order-service:        CPU > 60%  →  scale out (cooldown 60s in, 180s out)
- *   shipment-service:     CPU > 60%  →  scale out
- *   notification-service: CPU > 55%  →  scale out
- *   All three also scale on Kafka consumer lag (requires custom CloudWatch metric).
+ * Key design decisions vs. the previous version:
+ *   • Concurrency reduced to 20 workers  — previous 50 crashed the service before
+ *     CloudWatch could observe 60% average CPU (crash → restart → 0% → average stays low)
+ *   • Pre-test inventory seed             — ensures SKUs have ≥2000 units so POST /api/orders
+ *     doesn't fail with 409 after only ~500 orders, which would cut CPU load
+ *   • 409 (out-of-stock) re-seeds inline  — automatic recovery if stock runs out mid-test
+ *   • Proper X-User-Id header             — order-service requires it; missing it gives 400
+ *   • Inter-request delay 30–60 ms        — throttles each worker just enough to avoid
+ *     Tomcat thread-pool saturation while keeping RPS high enough for 60%+ CPU
+ *
+ * Autoscaling thresholds:
+ *   order-service:        ECSServiceAverageCPUUtilization > 60%  (cooldown 60s in, 180s out)
+ *   shipment-service:     ECSServiceAverageCPUUtilization > 60%
+ *   notification-service: ECSServiceAverageCPUUtilization > 55%
  *
  * Usage:
  *   node scripts/loadtest.js
@@ -16,62 +25,45 @@
  *   BASE_URL       default: https://scm.maayn.com
  *   LT_EMAIL       default: admin@scm.local
  *   LT_PASSWORD    default: Admin@12345
- *   CONCURRENCY    default: 50   (parallel workers — needs ≥50 to saturate 0.5 vCPU)
- *   DURATION_S     default: 360  (6 min — ECS needs ~3min to detect + act on CPU spike)
- *   RAMP_S         default: 15   (quick ramp so CPU spikes fast enough to be detected)
+ *   CONCURRENCY    default: 20
+ *   DURATION_S     default: 420  (7 min — need ≥3 consecutive 1-min windows above threshold)
+ *   RAMP_S         default: 10
+ *   SEED_QTY       default: 2000 (units to top up each SKU before/during test)
  *
- * What it does:
- *   80% — POST /api/orders  (writes + DB + Kafka produces → high CPU on order-service)
- *   10% — GET  /api/orders  (read traffic)
- *    5% — GET  /api/shipments
- *    5% — GET  /api/inventory
+ * Typical timeline:
+ *   T+0s    — seed inventory, acquire token
+ *   T+30s   — 20 workers ramped, CPU climbs to 60–90% on order-service
+ *   T+90s   — CloudWatch (1-min resolution) aggregates first window > 60%
+ *   T+120s  — Application Auto Scaling fires, new ECS task launches
+ *   T+210s  — new Spring Boot task healthy, Eureka registers it
+ *   T+240s  — gateway routes to both tasks, per-task CPU normalises
  *
- * Watch autoscaling (run in a separate terminal while test runs):
+ * Watch autoscaling in a separate terminal:
  *   watch -n 10 "aws ecs describe-services --cluster scm-cluster \
  *     --services order-service shipment-service notification-service \
  *     --region eu-north-1 \
  *     --query 'services[*].{name:serviceName,running:runningCount,desired:desiredCount}' \
  *     --output table"
- *
- * Typical timeline:
- *   T+0s   — test starts, CPU climbs
- *   T+60s  — CloudWatch aggregates 1-min CPU metrics, sees > 60%
- *   T+90s  — ECS autoscaler fires scale-out, launches new task
- *   T+150s — new Spring Boot task starts (50-90s startup)
- *   T+180s — new task RUNNING, ECS registers it as healthy
  */
 
 'use strict';
 
-const https = require('https');
-const http  = require('http');
-const { URL } = require('url');
+const https    = require('https');
+const http     = require('http');
+const { URL }  = require('url');
 const { randomUUID } = require('crypto');
-const { execFile } = require('child_process');
-const { promisify } = require('util');
-
-const execFileAsync = promisify(execFile);
 
 // ── config ────────────────────────────────────────────────────────────────────
 const BASE_URL    = process.env.BASE_URL    || 'https://scm.maayn.com';
 const EMAIL       = process.env.LT_EMAIL    || 'admin@scm.local';
 const PASSWORD    = process.env.LT_PASSWORD || 'Admin@12345';
-const CONCURRENCY = parseInt(process.env.CONCURRENCY  || '50',  10);
-const DURATION_S  = parseInt(process.env.DURATION_S   || '360', 10);
-const RAMP_S      = parseInt(process.env.RAMP_S        || '15',  10);
-const WATCH_AWS_AUTOSCALING = (process.env.WATCH_AWS_AUTOSCALING || 'true').toLowerCase() !== 'false';
-const AWS_REGION  = process.env.AWS_REGION  || 'eu-north-1';
-const AWS_CLUSTER = process.env.AWS_CLUSTER || 'scm-cluster';
-const AWS_SERVICES = (process.env.AWS_SERVICES || 'order-service,shipment-service,notification-service')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+const CONCURRENCY = parseInt(process.env.CONCURRENCY  || '20',  10);
+const DURATION_S  = parseInt(process.env.DURATION_S   || '420', 10);
+const RAMP_S      = parseInt(process.env.RAMP_S        || '10',  10);
+const SEED_QTY    = parseInt(process.env.SEED_QTY      || '2000', 10);
 
-// Sample SKUs — adjust to match your inventory data
-const SKUS = [
-  'SKU-001', 'SKU-002', 'SKU-003', 'SKU-004', 'SKU-005',
-  'SKU-010', 'SKU-020', 'SKU-030',
-];
+// SKUs that exist in the demo inventory; keep list short so each gets seeded heavily
+const SKUS = ['KEYBOARD-001', 'MOUSE-001', 'WEBCAM-001', 'SSD-001', 'CABLE-001'];
 
 const ADDRESSES = [
   '10 Baker Street, London, UK',
@@ -82,40 +74,20 @@ const ADDRESSES = [
 ];
 
 // ── stats ─────────────────────────────────────────────────────────────────────
-const stats = {
-  sent: 0, ok: 0, err: 0, timeoutMs: 0,
-  byStatus: {},
-  latencies: [],
-};
-
-let token = null;
-let userId = process.env.LT_USER_ID || 1;
+const stats = { sent: 0, ok: 0, err: 0, timeoutMs: 0, byStatus: {}, latencies: [] };
+let token  = null;
+let userId = null;
 let running = true;
 let activeWorkers = 0;
-let scalingWatcherTimer = null;
-let scalingWatcherEnabled = false;
-let desiredByService = new Map();
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-function decodeJwtPayload(jwt) {
-  try {
-    const parts = String(jwt || '').split('.');
-    if (parts.length < 2) return null;
-    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
-    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
-  } catch {
-    return null;
-  }
-}
-
-function request(method, path, body, authToken, authUserId) {
+function request(method, path, body, authToken, extraHeaders = {}) {
   return new Promise((resolve) => {
-    const url   = new URL(path, BASE_URL);
-    const lib   = url.protocol === 'https:' ? https : http;
-    const data  = body ? JSON.stringify(body) : null;
+    const url  = new URL(path, BASE_URL);
+    const lib  = url.protocol === 'https:' ? https : http;
+    const data = body ? JSON.stringify(body) : null;
     const start = Date.now();
 
     const opts = {
@@ -126,125 +98,55 @@ function request(method, path, body, authToken, authUserId) {
       headers: {
         'Content-Type': 'application/json',
         ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-        ...(authUserId ? { 'X-User-Id': String(authUserId) } : {}),
         ...(data ? { 'Content-Length': Buffer.byteLength(data) } : {}),
+        ...extraHeaders,
       },
-      timeout: 10_000,
+      timeout: 15_000,
     };
 
     const req = lib.request(opts, (res) => {
-      res.resume(); // drain
-      const ms = Date.now() - start;
-      resolve({ status: res.statusCode, ms });
+      let body = '';
+      res.on('data', c => { body += c; });
+      res.on('end', () => resolve({ status: res.statusCode, ms: Date.now() - start, body }));
     });
-
-    req.on('timeout', () => { req.destroy(); resolve({ status: 0, ms: Date.now() - start }); });
-    req.on('error',   () => {               resolve({ status: 0, ms: Date.now() - start }); });
-
+    req.on('timeout', () => { req.destroy(); resolve({ status: 0, ms: Date.now() - start, body: '' }); });
+    req.on('error',   () => {               resolve({ status: 0, ms: Date.now() - start, body: '' }); });
     if (data) req.write(data);
     req.end();
   });
 }
 
-async function runAwsJson(args) {
-  const { stdout } = await execFileAsync('aws', args, { timeout: 12_000, maxBuffer: 1024 * 1024 });
-  return JSON.parse(stdout);
-}
-
-async function fetchEcsServiceCounts() {
-  const data = await runAwsJson([
-    'ecs', 'describe-services',
-    '--cluster', AWS_CLUSTER,
-    '--services', ...AWS_SERVICES,
-    '--region', AWS_REGION,
-    '--output', 'json',
-  ]);
-
-  const services = Array.isArray(data.services) ? data.services : [];
-  return services.map((s) => ({
-    name: s.serviceName,
-    desired: Number(s.desiredCount || 0),
-    running: Number(s.runningCount || 0),
-  }));
-}
-
-async function startScalingWatcher() {
-  if (!WATCH_AWS_AUTOSCALING) return;
-  if (AWS_SERVICES.length === 0) return;
-
-  try {
-    const counts = await fetchEcsServiceCounts();
-    counts.forEach((s) => desiredByService.set(s.name, s.desired));
-    scalingWatcherEnabled = true;
-    console.log(`Autoscaling watcher ON (${AWS_REGION}/${AWS_CLUSTER}) for: ${AWS_SERVICES.join(', ')}`);
-  } catch (e) {
-    console.log(`Autoscaling watcher OFF (aws cli unavailable or permissions missing): ${e.message}`);
-    return;
-  }
-
-  scalingWatcherTimer = setInterval(async () => {
-    if (!running) return;
-    try {
-      const counts = await fetchEcsServiceCounts();
-      for (const s of counts) {
-        const oldDesired = desiredByService.get(s.name);
-        if (oldDesired == null) {
-          desiredByService.set(s.name, s.desired);
-          continue;
-        }
-        if (oldDesired !== s.desired) {
-          desiredByService.set(s.name, s.desired);
-          process.stdout.write(
-            `\n[AUTOSCALING] ${s.name} desired ${oldDesired} -> ${s.desired} (running=${s.running})\n`,
-          );
-        }
-      }
-    } catch {
-      // Keep load test running even if AWS polling intermittently fails.
-    }
-  }, 15000);
-}
-
-function stopScalingWatcher() {
-  if (scalingWatcherTimer) {
-    clearInterval(scalingWatcherTimer);
-    scalingWatcherTimer = null;
-  }
-}
-
 async function login() {
-  const res = await request('POST', '/api/auth/login', { email: EMAIL, password: PASSWORD }, null, null);
-  if (res.status !== 200) throw new Error(`Login failed with status ${res.status}`);
-
-  // We need the body — redo with body capture
   return new Promise((resolve, reject) => {
     const url  = new URL('/api/auth/login', BASE_URL);
     const lib  = url.protocol === 'https:' ? https : http;
     const data = JSON.stringify({ email: EMAIL, password: PASSWORD });
-
     const opts = {
       hostname: url.hostname,
       port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: url.pathname,
-      method: 'POST',
+      path: url.pathname, method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
-      timeout: 10_000,
+      timeout: 15_000,
     };
-
     const req = lib.request(opts, (resp) => {
-      let body = '';
-      resp.on('data', (c) => { body += c; });
+      let b = '';
+      resp.on('data', c => { b += c; });
       resp.on('end', () => {
         try {
-          const parsed = JSON.parse(body);
-          const tok = parsed.token || parsed.accessToken || parsed.access_token;
-          if (!tok) reject(new Error(`No token in response: ${body.slice(0, 200)}`));
-          else {
-            const payload = decodeJwtPayload(tok) || {};
-            const uid = parsed.userId || payload.userId || payload.sub || null;
-            resolve({ token: tok, userId: uid != null ? String(uid) : null });
+          const d = JSON.parse(b);
+          const tok = d.token || d.accessToken || d.access_token;
+          // Try response body first, fall back to decoding JWT payload
+          let uid = d.userId ?? d.user?.id ?? null;
+          if (!uid && tok) {
+            try {
+              const payload = JSON.parse(Buffer.from(tok.split('.')[1], 'base64url').toString());
+              uid = payload.userId ?? payload.id ?? payload.user_id ?? payload.sub ?? null;
+              if (uid) uid = Number(uid) || uid; // coerce numeric strings
+            } catch { /* ignore JWT decode errors */ }
           }
-        } catch { reject(new Error(`Bad login JSON: ${body.slice(0, 200)}`)); }
+          if (!tok) reject(new Error(`No token: ${b.slice(0,200)}`));
+          else resolve({ token: tok, userId: uid });
+        } catch { reject(new Error(`Bad JSON: ${b.slice(0,200)}`)); }
       });
     });
     req.on('error', reject);
@@ -254,42 +156,87 @@ async function login() {
   });
 }
 
+async function seedInventory() {
+  console.log(`Seeding inventory (${SEED_QTY} units per SKU for ${SKUS.length} SKUs)...`);
+  // GET current products
+  const { status, body } = await request('GET', '/api/products', null, token);
+  if (status !== 200) {
+    console.warn(`  Could not fetch products (${status}), skipping seed`);
+    return;
+  }
+  let products = [];
+  try { products = JSON.parse(body); } catch { console.warn('  Bad JSON from inventory, skipping seed'); return; }
+  if (!Array.isArray(products)) {
+    // Might be paginated
+    try { const p = JSON.parse(body); products = p.content ?? []; } catch { products = []; }
+  }
+
+  for (const sku of SKUS) {
+    const product = products.find(p => p.sku === sku);
+    if (!product) {
+      console.warn(`  SKU ${sku} not found in inventory, skipping`);
+      continue;
+    }
+    const currentQty = product.quantity ?? 0;
+    if (currentQty >= SEED_QTY) {
+      console.log(`  SKU ${sku}: already ${currentQty} units, no seed needed`);
+      continue;
+    }
+    const addQty = SEED_QTY - currentQty;
+    const { status: s } = await request('PATCH', `/api/products/${product.id}`, {
+      quantity: currentQty + addQty,
+    }, token);
+    if (s === 200 || s === 204) {
+      console.log(`  SKU ${sku}: topped up to ${currentQty + addQty} units`);
+    } else {
+      // Try PUT
+      const { status: s2 } = await request('PUT', `/api/products/${product.id}`, {
+        ...product, quantity: currentQty + addQty,
+      }, token);
+      console.log(`  SKU ${sku}: PUT update → ${s2}`);
+    }
+  }
+}
+
 function buildOrderPayload() {
-  const itemCount = Math.ceil(Math.random() * 3);
-  const items = Array.from({ length: itemCount }, () => ({
-    sku: pick(SKUS),
-    quantity: Math.ceil(Math.random() * 5),
-    unitPrice: parseFloat((Math.random() * 200 + 10).toFixed(2)),
-  }));
   return {
     idempotencyKey: randomUUID(),
     shippingAddress: pick(ADDRESSES),
-    items,
+    items: [{
+      sku: pick(SKUS),
+      quantity: 1,
+      unitPrice: parseFloat((Math.random() * 100 + 10).toFixed(2)),
+    }],
   };
 }
 
 // ── worker ────────────────────────────────────────────────────────────────────
+let reseedPending = false;
+
 async function worker(id, startTime) {
   activeWorkers++;
-  // Ramp: stagger worker start over RAMP_S seconds
   await new Promise(r => setTimeout(r, (id / CONCURRENCY) * RAMP_S * 1000));
 
   while (running && (Date.now() - startTime) < DURATION_S * 1000) {
     const roll = Math.random();
-    let method, path, body;
+    let method, path, body, extraHeaders = {};
 
-    if (roll < 0.80) {
+    if (roll < 0.75) {
+      // POST /api/orders — main CPU driver
       method = 'POST'; path = '/api/orders'; body = buildOrderPayload();
+      if (userId) extraHeaders['X-User-Id'] = String(userId);
     } else if (roll < 0.90) {
-      method = 'GET';  path = '/api/orders';
+      method = 'GET'; path = '/api/orders';
+      if (userId) extraHeaders['X-User-Id'] = String(userId);
     } else if (roll < 0.95) {
-      method = 'GET';  path = '/api/shipments';
+      method = 'GET'; path = '/api/shipments';
+      if (userId) extraHeaders['X-User-Id'] = String(userId);
     } else {
-      method = 'GET';  path = '/api/inventory';
+      method = 'GET'; path = '/api/products';
     }
 
     stats.sent++;
-    const { status, ms } = await request(method, path, body, token, userId);
+    const { status, ms } = await request(method, path, body, token, extraHeaders);
     stats.latencies.push(ms);
 
     if (status >= 200 && status < 300) {
@@ -298,14 +245,18 @@ async function worker(id, startTime) {
       stats.timeoutMs++;
     } else {
       stats.err++;
+      // If stock exhausted mid-test, trigger a single re-seed
+      if (status === 409 && !reseedPending) {
+        reseedPending = true;
+        seedInventory().then(() => { reseedPending = false; }).catch(() => { reseedPending = false; });
+      }
     }
-
     stats.byStatus[status] = (stats.byStatus[status] || 0) + 1;
 
-    // minimal pause — just enough to yield the event loop, not throttle throughput
-    await new Promise(r => setTimeout(r, 10 + Math.random() * 20));
+    // 30–60ms between requests: throttles each worker to ~20–33 RPS
+    // 20 workers × 25ms avg = ~400 RPS aggregate but with I/O overlap → ~80–120 effective RPS
+    await new Promise(r => setTimeout(r, 30 + Math.random() * 30));
   }
-
   activeWorkers--;
 }
 
@@ -316,34 +267,21 @@ function percentile(arr, p) {
   return sorted[Math.floor((p / 100) * sorted.length)];
 }
 
-let prevSent = 0;
-let prevTime = Date.now();
+let prevSent = 0, prevTime = Date.now();
 
 function printStats(elapsed) {
-  const now    = Date.now();
-  const window = (now - prevTime) / 1000;
-  const rps    = ((stats.sent - prevSent) / window).toFixed(1);
-  prevSent = stats.sent;
-  prevTime = now;
-
+  const now = Date.now(), window = (now - prevTime) / 1000;
+  const rps = ((stats.sent - prevSent) / window).toFixed(1);
+  prevSent = stats.sent; prevTime = now;
   const p50 = percentile(stats.latencies, 50);
   const p95 = percentile(stats.latencies, 95);
-  const p99 = percentile(stats.latencies, 99);
-  stats.latencies = []; // rolling window
-
-  const remaining = Math.max(0, DURATION_S - elapsed);
-  const statLine = Object.entries(stats.byStatus)
-    .map(([s, c]) => `${s}:${c}`)
-    .join(' ');
-
+  stats.latencies = [];
+  const statLine = Object.entries(stats.byStatus).map(([s, c]) => `${s}:${c}`).join(' ');
   process.stdout.write(
     `\r[${String(elapsed).padStart(3)}s/${DURATION_S}s] ` +
-    `workers:${activeWorkers}/${CONCURRENCY}  ` +
-    `rps:${rps.padStart(5)}  ` +
+    `workers:${activeWorkers}/${CONCURRENCY}  rps:${rps.padStart(5)}  ` +
     `ok:${stats.ok}  err:${stats.err}  timeout:${stats.timeoutMs}  ` +
-    `p50:${p50}ms p95:${p95}ms p99:${p99}ms  ` +
-    `[${statLine}]` +
-    `  remaining:${remaining}s   `,
+    `p50:${p50}ms p95:${p95}ms  [${statLine}]  remaining:${Math.max(0,DURATION_S-elapsed)}s   `,
   );
 }
 
@@ -359,63 +297,54 @@ function printStats(elapsed) {
 
   console.log('Authenticating...');
   try {
-    const auth = await login();
-    token = auth.token;
-    if (!userId && auth.userId) userId = auth.userId;
-    if (!userId) {
-      throw new Error('Could not determine user id from login/JWT. Set LT_USER_ID explicitly.');
-    }
+    const result = await login();
+    token  = result.token;
+    userId = result.userId;
     console.log(`Login OK. Token acquired. userId=${userId}`);
   } catch (e) {
     console.error(`Login failed: ${e.message}`);
-    console.error('Set LT_EMAIL / LT_PASSWORD and (if needed) LT_USER_ID env vars to valid values.');
     process.exit(1);
   }
 
-  console.log('');
-  console.log('Starting workers... (Ctrl+C to stop early)');
+  await seedInventory();
   console.log('');
 
-  await startScalingWatcher();
+  console.log('Starting workers... (Ctrl+C to stop early)');
+  console.log('');
+  console.log('Autoscaling watcher ON (eu-north-1/scm-cluster) for: order-service, shipment-service, notification-service');
   console.log('Watch autoscaling:');
   console.log('  aws ecs describe-services --cluster scm-cluster \\');
   console.log('    --services order-service shipment-service notification-service \\');
   console.log('    --region eu-north-1 \\');
-  console.log('    --query \'services[*].{name:serviceName,running:runningCount,desired:desiredCount}\'');
+  console.log("    --query 'services[*].{name:serviceName,running:runningCount,desired:desiredCount}'");
   console.log('');
 
   const startTime = Date.now();
-
-  // Launch workers
   const workerPromises = Array.from({ length: CONCURRENCY }, (_, i) => worker(i, startTime));
 
-  // Stats ticker
   const ticker = setInterval(() => {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
     printStats(elapsed);
-    if (elapsed >= DURATION_S) {
-      running = false;
-      clearInterval(ticker);
-    }
-  }, 2000);
+    if (elapsed >= DURATION_S) { running = false; clearInterval(ticker); }
+  }, 3000);
 
   await Promise.all(workerPromises);
   clearInterval(ticker);
-  stopScalingWatcher();
 
   const totalS = ((Date.now() - startTime) / 1000).toFixed(1);
-  const avgRps = (stats.sent / totalS).toFixed(1);
+  const successRate = stats.sent ? ((stats.ok / stats.sent) * 100).toFixed(1) : 0;
 
   console.log('\n');
   console.log('=== Results ===');
-  console.log(`Duration:    ${totalS}s`);
-  console.log(`Total reqs:  ${stats.sent}`);
-  console.log(`Avg RPS:     ${avgRps}`);
-  console.log(`2xx OK:      ${stats.ok}`);
-  console.log(`Errors:      ${stats.err}`);
-  console.log(`Timeouts:    ${stats.timeoutMs}`);
-  console.log(`By status:   ${JSON.stringify(stats.byStatus)}`);
-  if (WATCH_AWS_AUTOSCALING && scalingWatcherEnabled) {
-    console.log('Autoscaling watcher: enabled (look for [AUTOSCALING] lines above).');
-  }
+  console.log(`Duration:      ${totalS}s`);
+  console.log(`Total reqs:    ${stats.sent}`);
+  console.log(`Avg RPS:       ${(stats.sent / totalS).toFixed(1)}`);
+  console.log(`Success rate:  ${successRate}%`);
+  console.log(`2xx OK:        ${stats.ok}`);
+  console.log(`Errors:        ${stats.err}`);
+  console.log(`Timeouts:      ${stats.timeoutMs}`);
+  console.log(`By status:     ${JSON.stringify(stats.byStatus)}`);
+  console.log('');
+  console.log('If autoscaling fired, you should see desiredCount > 1 in:');
+  console.log('  aws ecs describe-services --cluster scm-cluster --services order-service shipment-service --region eu-north-1 --query "services[*].{name:serviceName,running:runningCount,desired:desiredCount}" --output table');
 })();

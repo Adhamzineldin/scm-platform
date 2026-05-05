@@ -59,14 +59,24 @@ public class GlobalExceptionHandler {
     }
     
     @ExceptionHandler(feign.FeignException.class)
-    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
-    public ErrorResponse handleFeignException(feign.FeignException ex, HttpServletRequest request) {
-        log.error("Downstream service call failed: {}", ex.getMessage());
-        return buildErrorResponse(
-                HttpStatus.SERVICE_UNAVAILABLE,
-                "A downstream service is currently unavailable. Please try again later.",
-                request.getRequestURI()
-        );
+    public ResponseEntity<ErrorResponse> handleFeignException(feign.FeignException ex, HttpServletRequest request) {
+        int upstream = ex.status();
+        HttpStatus status;
+        String message;
+        if (upstream == 409) {
+            status = HttpStatus.CONFLICT;
+            message = "Insufficient stock for one or more items.";
+        } else if (upstream >= 400 && upstream < 500) {
+            status = HttpStatus.BAD_REQUEST;
+            message = "Downstream service rejected the request (status " + upstream + ").";
+        } else {
+            // -1 means connection failure / timeout; 5xx means downstream error
+            status = HttpStatus.SERVICE_UNAVAILABLE;
+            message = "A downstream service is currently unavailable. Please try again later.";
+        }
+        log.error("Feign call failed (upstream={}): {}", upstream, ex.getMessage());
+        return ResponseEntity.status(status)
+                .body(buildErrorResponse(status, message, request.getRequestURI()));
     }
 
     @ExceptionHandler(WarehouseIntegrationException.class)
