@@ -16,7 +16,7 @@ export class EurekaService implements OnModuleDestroy {
 
   constructor(private readonly configService: ConfigService) {
     this.appName = this.configService.get<string>('EUREKA_APP_NAME', 'document-gen-service');
-    
+
     this.port = parseInt(this.configService.get<string>('PORT', '3050'), 10);
 
     this.eurekaHost = this.configService.get<string>(
@@ -24,17 +24,20 @@ export class EurekaService implements OnModuleDestroy {
       `http://${this.configService.get<string>('EUREKA_HOST', 'localhost')}:${this.configService.get<string>('EUREKA_PORT', '8761')}`,
     );
 
-    this.hostname = os.hostname();
+    // Prefer explicit hostname (e.g. the ECS Service Connect DNS name) over the
+    // OS hostname, which on Fargate may resolve to the SC proxy (169.254.172.2).
+    this.hostname = this.configService.get<string>('EUREKA_INSTANCE_HOSTNAME', os.hostname());
     this.instanceId = `${this.hostname}:${this.appName}:${this.port}`;
   }
 
   async register(): Promise<void> {
     const ip = this.getIpAddress();
+    const hostName = this.hostname; // SC DNS name when EUREKA_INSTANCE_HOSTNAME is set
     const vipAddress = this.appName.toLowerCase();
     const registrationBody = {
       instance: {
         instanceId: this.instanceId,
-        hostName: ip,
+        hostName,
         app: this.appName.toUpperCase(),
         ipAddr: ip,
         vipAddress,
@@ -51,9 +54,9 @@ export class EurekaService implements OnModuleDestroy {
           renewalIntervalInSecs: 30,
           durationInSecs: 90,
         },
-        healthCheckUrl: `http://${ip}:${this.port}/api/health`,
-        statusPageUrl: `http://${ip}:${this.port}/api/health`,
-        homePageUrl: `http://${ip}:${this.port}/`,
+        healthCheckUrl: `http://${hostName}:${this.port}/api/health`,
+        statusPageUrl: `http://${hostName}:${this.port}/api/health`,
+        homePageUrl: `http://${hostName}:${this.port}/`,
         metadata: {
           'management.port': `${this.port}`,
         },
@@ -100,7 +103,8 @@ export class EurekaService implements OnModuleDestroy {
     const interfaces = os.networkInterfaces();
     for (const name of Object.keys(interfaces)) {
       for (const iface of interfaces[name] ?? []) {
-        if (iface.family === 'IPv4' && !iface.internal) {
+        if (iface.family === 'IPv4' && !iface.internal &&
+            !iface.address.startsWith('169.254.')) { // skip ECS SC proxy link-local
           return iface.address;
         }
       }
