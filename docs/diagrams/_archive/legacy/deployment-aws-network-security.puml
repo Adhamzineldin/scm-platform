@@ -1,0 +1,58 @@
+@startuml
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam linetype ortho
+
+title SCM Platform - AWS Deployment (Network and Security View)
+
+cloud "Internet" as Internet
+node "Route 53" as Route53
+node "AWS WAF" as WAF
+node "Application Load Balancer\nPublic Subnets" as ALB
+
+frame "VPC (10.0.0.0/16)" {
+  node "Public Subnet A" as PubA
+  node "Public Subnet B" as PubB
+
+  frame "Private App Subnets" {
+    node "ECS Fargate Services\nGateway + Microservices" as ECS
+    node "ECS Service Discovery\n(Cloud Map / Eureka)" as Discovery
+  }
+
+  frame "Private Data Subnets" {
+    database "RDS PostgreSQL" as RDS
+    queue "MSK / Kafka Broker" as Kafka
+  }
+
+  node "NAT Gateway" as NAT
+  node "Secrets Manager" as Secrets
+  node "CloudWatch" as CloudWatch
+}
+
+Internet --> Route53 : DNS query
+Route53 --> WAF : web traffic
+WAF --> ALB : allow filtered requests
+ALB --> ECS : HTTPS/TCP target groups
+
+ECS --> Discovery : service registration/discovery
+ECS --> RDS : JDBC (restricted SG)
+ECS --> Kafka : producer/consumer
+ECS --> Secrets : fetch DB/JWT/SMTP secrets
+ECS --> CloudWatch : logs and metrics
+ECS --> NAT : outbound internet egress
+
+note right of ALB
+  Security groups:
+  - Inbound 443 from internet
+  - Outbound only to ECS targets
+end note
+
+note right of RDS
+  Data boundary:
+  - Private subnet only
+  - No public IP
+  - Access only from ECS SG
+end note
+
+@enduml
+

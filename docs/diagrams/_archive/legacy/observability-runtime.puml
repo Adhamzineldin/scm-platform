@@ -1,0 +1,56 @@
+@startuml
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam linetype ortho
+
+title SCM Platform - Runtime Observability Architecture
+
+package "Application Services" {
+  [API Gateway] as Gateway
+  [Auth Service] as Auth
+  [Order Service] as Order
+  [Inventory Service] as Inventory
+  [Warehouse Service] as Warehouse
+  [Shipment Service] as Shipment
+  [Notification Service] as Notification
+}
+
+package "Telemetry Stack" {
+  [Prometheus] as Prometheus
+  [Grafana] as Grafana
+  [Kafka Exporter] as KafkaExporter
+}
+
+cloud "CloudWatch Logs/Metrics" as CloudWatch
+queue "Kafka" as Kafka
+
+Gateway --> Prometheus : /actuator/prometheus
+Auth --> Prometheus : /actuator/prometheus
+Order --> Prometheus : /actuator/prometheus
+Inventory --> Prometheus : /actuator/prometheus
+Warehouse --> Prometheus : /actuator/prometheus
+Shipment --> Prometheus : /actuator/prometheus
+Notification --> Prometheus : /actuator/prometheus
+
+KafkaExporter --> Kafka : broker/topic lag metrics
+KafkaExporter --> Prometheus : scrape endpoint
+
+Prometheus --> Grafana : query metrics
+Grafana --> Grafana : dashboards + alert rules
+
+Gateway --> CloudWatch : structured logs
+Auth --> CloudWatch : auth/audit logs
+Order --> CloudWatch : business logs
+Shipment --> CloudWatch : dispatch logs
+
+note right of Prometheus
+  Core signals:
+  - HTTP latency/error rate
+  - JVM memory/CPU
+  - Kafka consumer lag
+  - Retry/DLT counters
+end note
+
+@enduml
+

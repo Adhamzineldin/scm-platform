@@ -1,0 +1,32 @@
+@startuml
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title SCM Platform - System Context
+
+actor Customer
+actor Admin
+actor "Warehouse Specialist" as WarehouseUser
+actor "Shipment Lead" as ShipmentLead
+
+rectangle "SCM Platform" {
+  [Frontend Dashboard]
+  [API Gateway]
+}
+
+cloud "Email Provider (SES/SMTP)" as Email
+cloud "Kafka/MSK" as Kafka
+database "Postgres/RDS" as Db
+
+Customer --> [Frontend Dashboard] : Browse, checkout, track orders
+Admin --> [Frontend Dashboard] : Manage users/orders
+WarehouseUser --> [Frontend Dashboard] : Pick and pack workflow
+ShipmentLead --> [Frontend Dashboard] : Shipment operations
+
+[Frontend Dashboard] --> [API Gateway] : HTTPS/REST
+[API Gateway] --> Db : service-owned DB operations
+[API Gateway] --> Kafka : event publish/consume via services
+[API Gateway] --> Email : notification trigger via services
+
+@enduml
+

@@ -1,0 +1,63 @@
+@startuml
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam responseMessageBelowArrow true
+
+autonumber
+
+title SCM Platform - Sequence Diagram (Order to Dispatch with Retry/Failure Paths)
+
+actor Customer
+participant Frontend
+participant "API Gateway" as Gateway
+participant "Order Service" as OrderSvc
+participant "Inventory Service" as InventorySvc
+participant "Warehouse Service" as WarehouseSvc
+queue "Kafka: order-created-topic" as T_OrderCreated
+queue "Kafka: warehouse-order-packed" as T_Packed
+queue "Kafka: order-ready-for-dispatch-topic" as T_ReadyDispatch
+participant "Shipment Service" as ShipmentSvc
+queue "Kafka: shipment-dispatched-topic" as T_Dispatched
+participant "Notification Service" as NotificationSvc
+queue "Kafka DLT" as T_DLT
+
+Customer -> Frontend : Place order
+Frontend -> Gateway : POST /api/orders
+Gateway -> OrderSvc : createOrder(command)
+OrderSvc -> InventorySvc : reserveStock(items)
+
+alt Stock reserved
+  InventorySvc --> OrderSvc : reservationId + OK
+  OrderSvc -> WarehouseSvc : createPickingTask(orderId)
+  WarehouseSvc --> OrderSvc : taskId
+  OrderSvc -> T_OrderCreated : publish OrderCreatedEvent
+  OrderSvc --> Gateway : 201 Created (status=VALIDATED)
+  Gateway --> Frontend : orderNumber + status
+
+  WarehouseSvc -> T_Packed : publish OrderPackedEvent
+  T_Packed -> OrderSvc : consume OrderPackedEvent
+  OrderSvc -> T_ReadyDispatch : publish OrderReadyForDispatchEvent
+
+  loop Retry up to configured attempts
+    T_ReadyDispatch -> ShipmentSvc : consume OrderReadyForDispatchEvent
+    ShipmentSvc -> ShipmentSvc : createShipment() + dispatch()
+    alt Shipment created
+      ShipmentSvc -> T_Dispatched : publish ShipmentDispatchedEvent
+      break
+    else Processing error
+      ShipmentSvc -> T_DLT : publish failed event after retries
+    end
+  end
+
+  T_Dispatched -> NotificationSvc : consume ShipmentDispatchedEvent
+  NotificationSvc -> NotificationSvc : build email payload
+  NotificationSvc --> Customer : Send dispatch/tracking email
+
+else Stock unavailable
+  InventorySvc --> OrderSvc : OUT_OF_STOCK
+  OrderSvc --> Gateway : 409 Conflict
+  Gateway --> Frontend : show unavailable items
+end
+
+@enduml
+

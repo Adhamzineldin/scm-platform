@@ -1,0 +1,59 @@
+@startuml
+skinparam shadowing false
+skinparam responseMessageBelowArrow true
+autonumber
+
+title SCM Platform - Sequence (Authentication, JWT, OTP)
+
+actor User
+participant Frontend
+participant "API Gateway" as Gateway
+participant "Auth Service" as Auth
+participant "User Repository" as UserRepo
+database "PostgreSQL" as DB
+participant "OTP Provider" as OtpEngine
+participant "Notification Service" as Notification
+participant "SMTP (Gmail)" as SMTP
+
+User -> Frontend : Sign in with email/password
+Frontend -> Gateway : POST /api/auth/login
+Gateway -> Auth : Forward credentials
+Auth -> UserRepo : findByEmail(email)
+UserRepo -> DB : SELECT user + role + status
+DB --> UserRepo : user row
+UserRepo --> Auth : user aggregate
+Auth -> Auth : verify password hash + account status
+
+alt Credentials valid and OTP required
+  Auth -> OtpEngine : generateOneTimeCode(userId)
+  OtpEngine --> Auth : otpRef + expiry
+  Auth -> Notification : POST /api/notifications/otp
+  Notification -> SMTP : send OTP email
+  SMTP --> Notification : accepted
+  Notification --> Auth : delivery acknowledged
+  Auth --> Gateway : 202 OTP_REQUIRED
+  Gateway --> Frontend : otpRef + expiresAt
+
+  User -> Frontend : Submit OTP
+  Frontend -> Gateway : POST /api/auth/verify-otp
+  Gateway -> Auth : verifyOtp(otpRef, code)
+  Auth -> OtpEngine : validateOtp(otpRef, code)
+
+  alt OTP valid
+    OtpEngine --> Auth : valid
+    Auth -> Auth : issue access + refresh JWT
+    Auth --> Gateway : 200 tokens + role claims
+    Gateway --> Frontend : login success
+  else OTP invalid/expired
+    OtpEngine --> Auth : invalid
+    Auth --> Gateway : 401 OTP_INVALID
+    Gateway --> Frontend : show retry error
+  end
+
+else Credentials invalid
+  Auth --> Gateway : 401 INVALID_CREDENTIALS
+  Gateway --> Frontend : show login error
+end
+
+@enduml
+

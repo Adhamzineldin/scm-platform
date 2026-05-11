@@ -1,0 +1,56 @@
+@startuml
+skinparam shadowing false
+skinparam responseMessageBelowArrow true
+autonumber
+
+title SCM Platform - Sequence (Order Cancellation and Stock Compensation)
+
+actor Customer
+participant Frontend
+participant "API Gateway" as Gateway
+participant "Order Service" as OrderSvc
+participant "Inventory Service" as InventorySvc
+participant "Warehouse Service" as WarehouseSvc
+queue "Kafka: order-status-changed-topic" as T_OrderStatus
+queue "Kafka: inventory-adjustment-topic" as T_Inventory
+participant "Notification Service" as NotificationSvc
+queue "Kafka DLT" as T_DLT
+
+Customer -> Frontend : Cancel order before dispatch
+Frontend -> Gateway : PATCH /api/orders/{id}/cancel
+Gateway -> OrderSvc : cancelOrder(orderId, reason)
+OrderSvc -> OrderSvc : check status eligibility
+
+alt Cancellable state (CREATED/VALIDATED/PICKING)
+  OrderSvc -> InventorySvc : releaseReservedStock(orderId)
+
+  alt Stock release success
+    InventorySvc --> OrderSvc : released OK
+    OrderSvc -> WarehouseSvc : cancelPickingTask(orderId)
+    WarehouseSvc --> OrderSvc : task cancelled or not found
+    OrderSvc -> T_OrderStatus : publish ORDER_CANCELLED
+    OrderSvc -> T_Inventory : publish STOCK_COMPENSATED
+    T_OrderStatus -> NotificationSvc : consume cancellation event
+    NotificationSvc --> Customer : send cancellation confirmation
+    OrderSvc --> Gateway : 200 CANCELLED
+    Gateway --> Frontend : cancellation success
+
+  else Stock release failed
+    InventorySvc --> OrderSvc : transient failure
+    loop retry release (bounded attempts)
+      OrderSvc -> InventorySvc : releaseReservedStock(orderId)
+    end
+    alt Retries exhausted
+      OrderSvc -> T_DLT : publish compensation failure
+      OrderSvc --> Gateway : 202 CANCELLATION_PENDING
+      Gateway --> Frontend : show pending status
+    end
+  end
+
+else Already dispatched / delivered
+  OrderSvc --> Gateway : 409 CANNOT_CANCEL
+  Gateway --> Frontend : show policy message
+end
+
+@enduml
+
