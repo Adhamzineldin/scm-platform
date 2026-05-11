@@ -1,0 +1,71 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+title SCM Platform - Use Case Diagram (Role Capabilities)
+
+actor Customer
+actor "Warehouse Operator" as WarehouseOperator
+actor "Shipment Manager" as ShipmentManager
+actor "Inventory Manager" as InventoryManager
+actor "System Admin" as Admin
+actor "Notification Service" as NotificationWorker
+
+rectangle "SCM Platform" {
+  usecase "Register / Login" as UC_Login
+  usecase "Manage Cart" as UC_Cart
+  usecase "Place Order" as UC_PlaceOrder
+  usecase "Track Shipment" as UC_TrackShipment
+  usecase "Download Invoice / Label" as UC_Documents
+
+  usecase "Reserve Stock" as UC_ReserveStock
+  usecase "Create Picking Task" as UC_CreatePickingTask
+  usecase "Pick and Pack Order" as UC_PickPack
+  usecase "Update Inventory Counts" as UC_UpdateInventory
+
+  usecase "Create Shipment" as UC_CreateShipment
+  usecase "Dispatch Shipment" as UC_DispatchShipment
+  usecase "Update Tracking Status" as UC_UpdateTracking
+
+  usecase "Receive Order Events" as UC_ReceiveEvents
+  usecase "Send Email Notifications" as UC_SendEmails
+
+  usecase "Manage Users and Roles" as UC_ManageUsers
+  usecase "View Platform Dashboard" as UC_Dashboard
+  usecase "Configure Service Access" as UC_AccessPolicy
+}
+
+Customer --> UC_Login
+Customer --> UC_Cart
+Customer --> UC_PlaceOrder
+Customer --> UC_TrackShipment
+Customer --> UC_Documents
+
+WarehouseOperator --> UC_CreatePickingTask
+WarehouseOperator --> UC_PickPack
+WarehouseOperator --> UC_UpdateInventory
+
+ShipmentManager --> UC_CreateShipment
+ShipmentManager --> UC_DispatchShipment
+ShipmentManager --> UC_UpdateTracking
+
+InventoryManager --> UC_ReserveStock
+InventoryManager --> UC_UpdateInventory
+
+Admin --> UC_ManageUsers
+Admin --> UC_Dashboard
+Admin --> UC_AccessPolicy
+
+NotificationWorker --> UC_ReceiveEvents
+NotificationWorker --> UC_SendEmails
+
+UC_PlaceOrder .> UC_ReserveStock : <<include>>
+UC_PlaceOrder .> UC_CreatePickingTask : <<include>>
+UC_PickPack .> UC_CreateShipment : <<include>>
+UC_DispatchShipment .> UC_UpdateTracking : <<include>>
+UC_ReceiveEvents .> UC_SendEmails : <<include>>
+
+@enduml
+
