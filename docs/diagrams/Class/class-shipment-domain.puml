@@ -1,0 +1,89 @@
+@startuml
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+title SCM Platform - Shipment Domain Class Diagram
+
+package "shipment-service" {
+  class Shipment {
+    +id: Long
+    +shipmentNumber: String
+    +orderId: Long
+    +carrierCode: String
+    +trackingNumber: String
+    +status: ShipmentStatus
+    +createdAt: Instant
+    +dispatchedAt: Instant
+    +deliveredAt: Instant
+    +markDispatched(): void
+    +markInTransit(): void
+    +markDelivered(): void
+    +markFailed(reason: String): void
+  }
+
+  class ShipmentItem {
+    +id: Long
+    +shipmentId: Long
+    +skuCode: String
+    +quantity: Integer
+    +weightKg: BigDecimal
+  }
+
+  class ShipmentEvent {
+    +id: Long
+    +shipmentId: Long
+    +eventType: ShipmentEventType
+    +eventTime: Instant
+    +location: String
+    +remarks: String
+  }
+
+  enum ShipmentStatus {
+    CREATED
+    READY
+    DISPATCHED
+    IN_TRANSIT
+    DELIVERED
+    FAILED
+  }
+
+  enum ShipmentEventType {
+    CREATED
+    DISPATCHED
+    IN_TRANSIT
+    OUT_FOR_DELIVERY
+    DELIVERED
+    FAILED
+  }
+
+  class ShipmentService {
+    +createShipment(cmd: CreateShipmentCommand): Shipment
+    +dispatchShipment(shipmentId: Long): Shipment
+    +updateTracking(cmd: UpdateTrackingCommand): Shipment
+    +getShipmentByOrder(orderId: Long): Shipment
+  }
+
+  interface ShipmentRepository {
+    +save(entity: Shipment): Shipment
+    +findById(id: Long): Optional<Shipment>
+    +findByOrderId(orderId: Long): Optional<Shipment>
+  }
+
+  class ShipmentPublisher {
+    +publishShipmentDispatched(shipment: Shipment): void
+    +publishShipmentStatusChanged(shipment: Shipment): void
+  }
+}
+
+Shipment "1" *-- "1..*" ShipmentItem
+Shipment "1" o-- "0..*" ShipmentEvent : timeline
+Shipment --> ShipmentStatus
+ShipmentEvent --> ShipmentEventType
+ShipmentService --> ShipmentRepository
+ShipmentService --> ShipmentPublisher
+ShipmentPublisher ..> Shipment
+
+@enduml
+

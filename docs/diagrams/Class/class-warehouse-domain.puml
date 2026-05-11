@@ -1,0 +1,91 @@
+@startuml
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+hide empty members
+
+title SCM Platform - Warehouse Domain Class Diagram
+
+package "warehouse-service" {
+  class PickingTask {
+    +id: Long
+    +orderId: Long
+    +taskNumber: String
+    +status: PickingTaskStatus
+    +assignedTo: String
+    +priority: Integer
+    +createdAt: Instant
+    +completedAt: Instant
+    +assign(operator: String): void
+    +start(): void
+    +complete(): void
+    +fail(reason: String): void
+  }
+
+  class PickingTaskItem {
+    +id: Long
+    +taskId: Long
+    +skuCode: String
+    +requestedQty: Integer
+    +pickedQty: Integer
+    +zoneCode: String
+    +rackCode: String
+    +markPicked(qty: Integer): void
+  }
+
+  enum PickingTaskStatus {
+    CREATED
+    ASSIGNED
+    IN_PROGRESS
+    COMPLETED
+    FAILED
+  }
+
+  class WarehouseZone {
+    +id: Long
+    +zoneCode: String
+    +description: String
+    +temperatureClass: String
+    +isActive: Boolean
+  }
+
+  class SkuLocation {
+    +id: Long
+    +skuCode: String
+    +zoneCode: String
+    +rackCode: String
+    +binCode: String
+    +availableQty: Integer
+    +reserve(qty: Integer): void
+    +release(qty: Integer): void
+  }
+
+  class PickingTaskService {
+    +createTask(req: PickingTaskRequest): PickingTask
+    +assignTask(taskId: Long, operator: String): PickingTask
+    +completeTask(taskId: Long): PickingTask
+    +failTask(taskId: Long, reason: String): PickingTask
+  }
+
+  interface PickingTaskRepository {
+    +save(task: PickingTask): PickingTask
+    +findById(taskId: Long): Optional<PickingTask>
+    +findByOrderId(orderId: Long): Optional<PickingTask>
+  }
+
+  class WarehousePublisher {
+    +publishOrderPacked(task: PickingTask): void
+  }
+}
+
+PickingTask "1" *-- "1..*" PickingTaskItem : includes
+PickingTask --> PickingTaskStatus
+PickingTaskItem --> SkuLocation : picks from
+SkuLocation --> WarehouseZone
+PickingTaskService --> PickingTaskRepository
+PickingTaskService --> WarehousePublisher
+WarehousePublisher ..> PickingTask
+
+@enduml
+
