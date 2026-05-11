@@ -1,0 +1,48 @@
+@startuml
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+
+title SCM Platform - Class Diagram (Cart Domain)
+
+package "cart-service" {
+  class Cart {
+    +id: Long
+    +customerId: Long
+    +status: CartStatus
+    +createdAt: Instant
+    +updatedAt: Instant
+    +addItem(item: CartItem): void
+    +removeItem(itemId: Long): void
+    +clear(): void
+  }
+
+  class CartItem {
+    +id: Long
+    +cartId: Long
+    +productId: Long
+    +skuCode: String
+    +quantity: Integer
+    +unitPrice: BigDecimal
+    +lineTotal(): BigDecimal
+  }
+
+  enum CartStatus {
+    ACTIVE
+    CHECKED_OUT
+    ABANDONED
+  }
+
+  class CartService {
+    +getOrCreateCart(customerId: Long): Cart
+    +addToCart(customerId: Long, sku: String, qty: Integer): Cart
+    +checkout(customerId: Long): CheckoutResult
+  }
+}
+
+Cart --> CartStatus
+Cart "1" *-- "0..*" CartItem
+CartService --> Cart
+
+@enduml
+

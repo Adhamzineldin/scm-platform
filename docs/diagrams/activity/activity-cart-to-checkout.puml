@@ -1,0 +1,25 @@
+@startuml
+skinparam shadowing false
+
+title SCM Platform - Activity (Cart to Checkout)
+
+start
+:Customer adds products to cart;
+:Cart Service stores line items;
+:Customer starts checkout;
+:Gateway calls Order Service;
+:Order Service requests stock reservation;
+if (Stock available?) then (yes)
+  :Order persisted with VALIDATED status;
+  :Warehouse task requested;
+  :Publish order-created event;
+  :Return order confirmation;
+  stop
+else (no)
+  :Reject checkout with out-of-stock response;
+  :Suggest quantity adjustment;
+  stop
+endif
+
+@enduml
+

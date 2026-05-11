@@ -19,7 +19,8 @@ public class GatewayConfig {
                 .route(path("/api/auth/**")
                         .or(path("/api/users/**"))
                         .or(path("/api/admin/**"))
-                        .or(path("/api/dashboard/**")), http())
+                        .or(path("/api/dashboard/**"))
+                        .or(path("/api/uploads/**")), http())
                 .filter(lb("auth-service"))
                 .build();
     }

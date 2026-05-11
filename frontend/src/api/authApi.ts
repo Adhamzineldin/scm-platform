@@ -34,6 +34,7 @@ export interface DashboardSummary {
   email: string
   role: Role
   menuItems: string[]
+  profilePictureUrl?: string | null
 }
 
 export function decodeJwt(token: string): Record<string, unknown> | null {
@@ -80,5 +81,16 @@ export async function resendOtp(email: string): Promise<OtpSentResponse> {
 
 export async function getMyDashboard(): Promise<DashboardSummary> {
   const { data } = await api.get<DashboardSummary>('/api/dashboard/me')
+  return data
+}
+
+export async function uploadProfilePicture(file: File): Promise<{ profilePictureUrl: string }> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post<{ profilePictureUrl: string }>(
+    '/api/dashboard/profile/picture',
+    formData,
+    { headers: { 'Content-Type': undefined } },
+  )
   return data
 }

@@ -25,6 +25,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/register", "/api/auth/login",
                                 "/api/auth/verify-otp", "/api/auth/resend-otp").permitAll()
                         .requestMatchers("/api/users/**").permitAll()   // internal service-to-service lookup
+                        .requestMatchers("/api/uploads/**").permitAll()  // profile pictures (public images)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/inventory/**").hasAnyRole("ADMIN", "INVENTORY_MANAGER")
                         .requestMatchers("/api/orders/**").hasAnyRole("ADMIN", "ORDER_PROCESSING")

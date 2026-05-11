@@ -56,7 +56,16 @@
       "Bash(xargs '-I{}' aws ecs describe-tasks --cluster scm-cluster --tasks '{}' --region eu-north-1 --query 'tasks[0].{stopCode:stopCode,reason:stoppedReason,containers:containers[0].{reason:reason,exitCode:exitCode}}' --output json)",
       "Bash(npm run *)",
       "Bash(node scripts/loadtest.js)",
-      "Bash(aws logs *)"
+      "Bash(aws logs *)",
+      "Bash(aws s3api *)",
+      "Bash(aws s3api put-bucket-policy --bucket scm-profile-pictures-310133718291 --policy '{ *)",
+      "Bash(aws s3api put-bucket-cors --bucket scm-profile-pictures-310133718291 --cors-configuration '{ *)",
+      "Bash(aws iam put-role-policy --role-name scm-ecs-task-role --policy-name scm-profile-pictures-s3 --policy-document '{ *)",
+      "Bash(aws iam *)",
+      "Bash(aws application-autoscaling describe-scalable-targets *)",
+      "Bash(aws application-autoscaling describe-scaling-policies *)",
+      "Bash(aws application-autoscaling describe-scaling-activities *)",
+      "Bash(aws cloudwatch describe-alarms *)"
     ]
   }
 }

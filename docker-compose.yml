@@ -148,6 +148,10 @@ services:
       SPRING_MAIL_PORT: 587
       SPRING_MAIL_USERNAME: Adhams.Botmail@gmail.com
       SPRING_MAIL_PASSWORD: tkfp vsuh kybi jwbh
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_DIR: /app/uploads
+    volumes:
+      - auth_uploads:/app/uploads
 
   cart-service:
     build:
@@ -359,3 +363,4 @@ services:
 volumes:
   postgres_data:
   grafana_data:
+  auth_uploads:

@@ -29,4 +29,7 @@ public class User {
     @Column(name = "email_verified")
     @Builder.Default
     private boolean emailVerified = false;
+
+    @Column(name = "profile_picture_url", length = 1024)
+    private String profilePictureUrl;
 }

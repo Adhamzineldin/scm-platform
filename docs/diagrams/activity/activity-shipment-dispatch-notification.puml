@@ -1,0 +1,30 @@
+@startuml
+skinparam shadowing false
+
+title SCM Platform - Activity (Shipment Dispatch and Notification)
+
+start
+:Order status becomes READY_FOR_DISPATCH;
+:Shipment Service consumes dispatch event;
+:Create shipment record and tracking number;
+if (Dispatch API success?) then (yes)
+  :Set status DISPATCHED;
+  :Publish shipment-dispatched event;
+  :Notification Service consumes event;
+  :Send email/SMS tracking update;
+  :Mark notification delivered;
+  stop
+else (no)
+  :Increment retry counter;
+  if (Retry attempts left?) then (yes)
+    :Requeue event for retry;
+    stop
+  else (no)
+    :Publish to dead-letter topic;
+    :Raise operations alert;
+    stop
+  endif
+endif
+
+@enduml
+

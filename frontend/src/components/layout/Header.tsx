@@ -1,12 +1,28 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { LogOut, Bell, User } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore.ts'
 import { useNotificationStore } from '../../store/notificationStore.ts'
+import { getMyDashboard } from '../../api/authApi.ts'
+import { API_BASE_URL } from '../../api/axiosInstance.ts'
+
+function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  return url.startsWith('http') ? url : `${API_BASE_URL}${url}`
+}
 
 export default function Header() {
   const navigate = useNavigate()
   const { username, role, logout } = useAuthStore()
   const unreadCount = useNotificationStore((s) => s.unreadCount)
+
+  const meQuery = useQuery({
+    queryKey: ['me'],
+    queryFn: getMyDashboard,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const pictureUrl = resolveMediaUrl(meQuery.data?.profilePictureUrl)
 
   const handleLogout = () => {
     logout()
@@ -38,8 +54,12 @@ export default function Header() {
             <div className="text-sm font-medium text-slate-900">{username ?? 'User'}</div>
             <div className="text-xs text-slate-500">{role ?? ''}</div>
           </div>
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-700">
-            <User size={16} />
+          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-indigo-700">
+            {pictureUrl ? (
+              <img src={pictureUrl} alt="Avatar" className="h-full w-full object-cover" />
+            ) : (
+              <User size={16} />
+            )}
           </div>
         </Link>
         <button

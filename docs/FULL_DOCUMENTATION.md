@@ -13,12 +13,12 @@ SCM Platform is a microservices-based logistics application with both synchronou
 
 PlantUML sources are in `docs/diagrams`.
 
-- System context: `docs/diagrams/system-context.puml`
-- Container architecture: `docs/diagrams/container-architecture.puml`
-- Local deployment: `docs/diagrams/deployment-local.puml`
-- AWS deployment: `docs/diagrams/deployment-aws.puml`
-- Event pipeline: `docs/diagrams/event-driven-order-pipeline.puml`
-- API map: `docs/diagrams/api-map.puml`
+- Primary use-case overview: `docs/diagrams/use-case/use-case-roles-capabilities.puml`
+- Primary event pipeline sequence: `docs/diagrams/sequence/sequence-event-order-pipeline-overview.puml`
+- Primary fulfillment sequence with failures: `docs/diagrams/sequence/sequence-order-dispatch-failures.puml`
+- Primary order fulfillment activity: `docs/diagrams/activity/activity-order-fulfillment.puml`
+- Primary order domain class model: `docs/diagrams/class/class-order-domain.puml`
+- Full catalog by type: `docs/diagrams/README.md`
 
 ## 3) API Map (Gateway -> Services)
 

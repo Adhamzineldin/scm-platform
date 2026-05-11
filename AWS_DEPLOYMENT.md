@@ -153,7 +153,7 @@ The repository now includes dedicated bonus documentation and infra templates:
 
 - Full doc: `docs/FULL_DOCUMENTATION.md`
 - Evidence one-pager: `docs/EVIDENCE_EVENT_PIPELINE_BONUS.md`
-- PlantUML diagrams: `docs/diagrams/*.puml`
+- PlantUML diagrams: `docs/diagrams/**/*.puml`
 - ECS worker autoscaling policies:
   - `infra/ecs/worker-autoscaling/target-tracking-policies.json`
   - `infra/ecs/worker-autoscaling/app-autoscaling-setup.sh`

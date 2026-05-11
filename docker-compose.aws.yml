@@ -1,0 +1,6 @@
+services:
+  auth-service:
+    environment:
+      STORAGE_TYPE: s3
+      AWS_S3_BUCKET: scm-profile-pictures-310133718291
+      AWS_REGION: eu-north-1

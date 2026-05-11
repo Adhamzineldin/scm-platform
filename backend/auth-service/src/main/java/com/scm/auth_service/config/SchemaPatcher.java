@@ -45,6 +45,16 @@ public class SchemaPatcher implements CommandLineRunner {
 
             log.info("[SchemaPatcher] users_role_check refreshed with: {}", values);
 
+            // Add profile_picture_url column if it doesn't exist yet (new in this release).
+            try {
+                jdbcTemplate.execute(
+                    "ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS profile_picture_url VARCHAR(1024)"
+                );
+                log.info("[SchemaPatcher] profile_picture_url column ensured");
+            } catch (Exception ex) {
+                log.warn("[SchemaPatcher] profile_picture_url column add skipped: {}", ex.getMessage());
+            }
+
             // Backfill email_verified for any existing users created before 2FA was added.
             // Only updates NULL rows (column was just added, no default) — new unverified users have false explicitly.
             try {
