@@ -1,0 +1,34 @@
+@startuml
+skinparam shadowing false
+
+title SCM Platform - Activity (Auth Login and OTP Verification)
+
+start
+:User submits email/password;
+:Gateway forwards request to Auth Service;
+:Load user from database;
+if (Credentials valid?) then (yes)
+  :Generate OTP and expiration;
+  :Send OTP via Notification Service;
+  if (OTP delivery success?) then (yes)
+    :Wait for OTP input;
+    :Verify OTP value;
+    if (OTP valid?) then (yes)
+      :Issue access and refresh JWT tokens;
+      :Return login success;
+      stop
+    else (no)
+      :Return OTP invalid/expired error;
+      stop
+    endif
+  else (no)
+    :Return temporary delivery error;
+    stop
+  endif
+else (no)
+  :Return invalid credentials;
+  stop
+endif
+
+@enduml
+
