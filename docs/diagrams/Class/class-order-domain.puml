@@ -1,0 +1,90 @@
+@startuml
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+hide empty members
+
+title SCM Platform - Order Domain Class Diagram
+
+package "order-service" {
+  class Order {
+    +id: Long
+    +orderNumber: String
+    +customerId: Long
+    +status: OrderStatus
+    +createdAt: Instant
+    +updatedAt: Instant
+    +totalAmount: BigDecimal
+    +markValidated(): void
+    +markPacked(): void
+    +markDispatched(trackingNo: String): void
+    +cancel(reason: String): void
+  }
+
+  class OrderItem {
+    +id: Long
+    +orderId: Long
+    +productId: Long
+    +skuCode: String
+    +quantity: Integer
+    +unitPrice: BigDecimal
+    +lineTotal(): BigDecimal
+  }
+
+  enum OrderStatus {
+    CREATED
+    VALIDATED
+    PICKING
+    PACKED
+    READY_FOR_DISPATCH
+    DISPATCHED
+    CANCELLED
+  }
+
+  class OrderService {
+    +createOrder(cmd: CreateOrderCommand): Order
+    +getOrder(orderId: Long): Order
+    +handleOrderPacked(evt: OrderPackedEvent): void
+    +handleShipmentDispatched(evt: ShipmentDispatchedEvent): void
+    +cancelOrder(orderId: Long, reason: String): Order
+  }
+
+  interface OrderRepository {
+    +save(order: Order): Order
+    +findById(id: Long): Optional<Order>
+    +findByOrderNumber(orderNumber: String): Optional<Order>
+  }
+
+  class OrderPublisher {
+    +publishOrderCreated(order: Order): void
+    +publishOrderStatusChanged(order: Order): void
+    +publishOrderReadyForDispatch(order: Order): void
+  }
+
+  class InventoryClient {
+    +reserveStock(req: StockReservationRequest): ReservationResult
+    +releaseStock(req: StockReleaseRequest): void
+  }
+
+  class WarehouseClient {
+    +createPickingTask(req: PickingTaskRequest): PickingTaskResponse
+  }
+
+  class ShipmentClient {
+    +createShipment(req: CreateShipmentRequest): ShipmentResponse
+  }
+}
+
+Order "1" *-- "1..*" OrderItem : contains
+Order --> OrderStatus
+OrderService --> OrderRepository
+OrderService --> InventoryClient
+OrderService --> WarehouseClient
+OrderService --> ShipmentClient
+OrderService --> OrderPublisher
+OrderRepository ..> Order
+OrderPublisher ..> Order
+
+@enduml
+
