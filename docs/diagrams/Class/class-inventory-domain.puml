@@ -1,0 +1,79 @@
+@startuml
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+title SCM Platform - Inventory Domain Class Diagram
+
+package "inventory-service" {
+  class InventoryItem {
+    +id: Long
+    +skuCode: String
+    +productName: String
+    +warehouseId: Long
+    +availableQty: Integer
+    +reservedQty: Integer
+    +reorderLevel: Integer
+    +status: InventoryStatus
+    +reserve(qty: Integer): void
+    +release(qty: Integer): void
+    +deduct(qty: Integer): void
+    +restock(qty: Integer): void
+  }
+
+  enum InventoryStatus {
+    ACTIVE
+    LOW_STOCK
+    OUT_OF_STOCK
+    DISCONTINUED
+  }
+
+  class StockReservation {
+    +id: Long
+    +reservationId: String
+    +orderId: Long
+    +status: ReservationStatus
+    +expiresAt: Instant
+  }
+
+  enum ReservationStatus {
+    RESERVED
+    RELEASED
+    CONSUMED
+    EXPIRED
+    FAILED
+  }
+
+  class InventoryService {
+    +reserveStock(cmd: ReserveStockCommand): ReservationResult
+    +releaseReservedStock(orderId: Long): void
+    +confirmDeduction(orderId: Long): void
+    +adjustStock(cmd: AdjustStockCommand): InventoryItem
+    +getBySku(skuCode: String): InventoryItem
+  }
+
+  interface InventoryRepository {
+    +save(item: InventoryItem): InventoryItem
+    +findBySkuCode(skuCode: String): Optional<InventoryItem>
+  }
+
+  interface StockReservationRepository {
+    +save(reservation: StockReservation): StockReservation
+    +findByOrderId(orderId: Long): Optional<StockReservation>
+  }
+
+  class InventoryPublisher {
+    +publishStockReserved(evt: StockReservedEvent): void
+    +publishStockAdjusted(evt: StockAdjustedEvent): void
+  }
+}
+
+InventoryItem --> InventoryStatus
+StockReservation --> ReservationStatus
+InventoryService --> InventoryRepository
+InventoryService --> StockReservationRepository
+InventoryService --> InventoryPublisher
+
+@enduml
+
