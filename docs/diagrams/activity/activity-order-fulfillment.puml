@@ -1,0 +1,57 @@
+@startuml
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #F9F9F9
+  BorderColor #555
+  ArrowColor #333
+}
+
+title SCM Platform - Activity Diagram (Order Fulfillment Lifecycle)
+
+start
+:Customer submits order via frontend;
+:API Gateway forwards to Order Service;
+
+:Validate request and customer context;
+if (Request valid?) then (yes)
+  :Create order in status CREATED;
+  :Reserve stock from Inventory Service;
+
+  if (Stock reserved?) then (yes)
+    :Create warehouse picking task;
+    :Publish OrderCreated event to Kafka;
+    :Return order accepted response;
+
+    :Warehouse operator picks and packs items;
+    if (Task completed?) then (yes)
+      :Warehouse Service publishes warehouse-order-packed;
+      :Order Service sets status READY_FOR_DISPATCH;
+      :Publish order-ready-for-dispatch-topic;
+
+      :Shipment Service consumes dispatch event;
+      :Create shipment and assign tracking number;
+      :Publish shipment-dispatched-topic;
+      :Order status DISPATCHED;
+
+      :Notification Service sends email update;
+      stop
+    else (no)
+      :Mark task FAILED;
+      :Order status ON_HOLD;
+      :Notify operations for manual action;
+      stop
+    endif
+
+  else (no)
+    :Order status REJECTED_STOCK_UNAVAILABLE;
+    :Return conflict response to frontend;
+    stop
+  endif
+
+else (no)
+  :Return validation error;
+  stop
+endif
+
+@enduml
+
