@@ -1,0 +1,52 @@
+@startuml
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+
+title SCM Platform - Class Diagram (Document Generation Domain)
+
+package "document-gen-service" {
+  class DocumentRequest {
+    +id: String
+    +orderId: Long
+    +documentType: DocumentType
+    +requestedBy: String
+    +createdAt: Instant
+  }
+
+  class GeneratedDocument {
+    +id: String
+    +requestId: String
+    +fileName: String
+    +mimeType: String
+    +storagePath: String
+    +sizeBytes: Long
+  }
+
+  enum DocumentType {
+    INVOICE
+    SHIPPING_LABEL
+    PICK_LIST
+  }
+
+  class DocumentTemplateService {
+    +buildTemplateData(orderId: Long): Map
+  }
+
+  class PdfRenderer {
+    +render(html: String): ByteArray
+  }
+
+  class DocumentController {
+    +generateDocument(req: DocumentRequest): GeneratedDocument
+    +downloadDocument(id: String): ByteArray
+  }
+}
+
+DocumentRequest --> DocumentType
+DocumentController --> DocumentTemplateService
+DocumentController --> PdfRenderer
+DocumentController --> GeneratedDocument
+
+@enduml
+
