@@ -65,7 +65,18 @@
       "Bash(aws application-autoscaling describe-scalable-targets *)",
       "Bash(aws application-autoscaling describe-scaling-policies *)",
       "Bash(aws application-autoscaling describe-scaling-activities *)",
-      "Bash(aws cloudwatch describe-alarms *)"
+      "Bash(aws cloudwatch describe-alarms *)",
+      "Bash(aws rds describe-db-instances *)",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(echo \"api-gateway exit: $?\")",
+      "Bash(echo \"dashboard exit: $?\")",
+      "Bash(aws rds describe-db-parameters *)",
+      "Bash(aws rds create-db-parameter-group *)",
+      "Bash(aws rds modify-db-parameter-group *)",
+      "Bash(aws rds modify-db-instance *)",
+      "Bash(aws rds reboot-db-instance *)",
+      "Bash(docker volume *)",
+      "Bash(echo \"Build exit: $?\")"
     ]
   }
 }

@@ -50,6 +50,12 @@ public class JwtAuthFilter implements HandlerInterceptor {
             return true;
         }
 
+        // Public assets: profile pictures are served unauthenticated so <img> tags
+        // work without an Authorization header in the browser.
+        if (request.getRequestURI().startsWith("/api/uploads/")) {
+            return true;
+        }
+
         String token = extractToken(request);
         if (token == null) {
             return reject(response, "Missing or invalid Authorization header");
