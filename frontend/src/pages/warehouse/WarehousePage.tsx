@@ -160,10 +160,10 @@ export default function WarehousePage() {
   }
 
   const TAB_CLASSES = (active: boolean) =>
-    `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+    `inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
       active
-        ? 'border-indigo-600 text-indigo-600'
-        : 'border-transparent text-slate-500 hover:text-slate-700'
+        ? 'bg-indigo-600 text-white shadow-sm'
+        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
     }`
 
   return (
@@ -171,8 +171,8 @@ export default function WarehousePage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Warehouse</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage SKU locations, process picking tasks, oversee zones</p>
+          <h1 className="text-2xl font-bold text-slate-900">Warehouse</h1>
+          <p className="mt-0.5 text-sm text-slate-500">Manage SKU locations, process picking tasks, oversee zones</p>
         </div>
         {(pending > 0 || inProg > 0) && (
           <div className="flex gap-2">
@@ -191,18 +191,16 @@ export default function WarehousePage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200">
-        <nav className="-mb-px flex gap-1">
-          <button onClick={() => setTab('tasks')} className={TAB_CLASSES(tab === 'tasks')}>
-            <span className="flex items-center gap-1.5"><Package size={15} />Picking tasks</span>
-          </button>
-          <button onClick={() => setTab('locations')} className={TAB_CLASSES(tab === 'locations')}>
-            <span className="flex items-center gap-1.5"><MapPin size={15} />SKU locations</span>
-          </button>
-          <button onClick={() => setTab('zones')} className={TAB_CLASSES(tab === 'zones')}>
-            <span className="flex items-center gap-1.5"><Layers size={15} />Zones</span>
-          </button>
-        </nav>
+      <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm w-fit">
+        <button onClick={() => setTab('tasks')} className={TAB_CLASSES(tab === 'tasks')}>
+          <Package size={15} />Picking tasks
+        </button>
+        <button onClick={() => setTab('locations')} className={TAB_CLASSES(tab === 'locations')}>
+          <MapPin size={15} />SKU locations
+        </button>
+        <button onClick={() => setTab('zones')} className={TAB_CLASSES(tab === 'zones')}>
+          <Layers size={15} />Zones
+        </button>
       </div>
 
       {/* ── Picking Tasks ── */}
@@ -247,7 +245,7 @@ export default function WarehousePage() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
@@ -368,7 +366,7 @@ export default function WarehousePage() {
             </p>
             <button
               onClick={() => setShowLocForm((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
             >
               <Plus size={14} /> Register location
             </button>
@@ -377,7 +375,7 @@ export default function WarehousePage() {
           {showLocForm && (
             <form
               onSubmit={handleAddLoc}
-              className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 space-y-3"
+              className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5 space-y-4"
             >
               <h3 className="text-sm font-semibold text-indigo-900">Register SKU location</h3>
               <div className="grid gap-3 sm:grid-cols-4">
@@ -435,14 +433,14 @@ export default function WarehousePage() {
                 <button
                   type="submit"
                   disabled={addLocMut.isPending}
-                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                  className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {addLocMut.isPending ? 'Saving…' : 'Save location'}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowLocForm(false); setLocForm(EMPTY_LOC) }}
-                  className="rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
                 >
                   Cancel
                 </button>
@@ -450,7 +448,7 @@ export default function WarehousePage() {
             </form>
           )}
 
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
@@ -526,7 +524,7 @@ export default function WarehousePage() {
             </p>
             <button
               onClick={() => setShowZoneForm((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
             >
               <Plus size={14} /> Create zone
             </button>
@@ -535,7 +533,7 @@ export default function WarehousePage() {
           {showZoneForm && (
             <form
               onSubmit={handleAddZone}
-              className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 space-y-3"
+              className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5 space-y-4"
             >
               <h3 className="text-sm font-semibold text-indigo-900">Create warehouse zone</h3>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -586,14 +584,14 @@ export default function WarehousePage() {
                 <button
                   type="submit"
                   disabled={addZoneMut.isPending}
-                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                  className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {addZoneMut.isPending ? 'Creating…' : 'Create zone'}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowZoneForm(false); setZoneForm(EMPTY_ZONE) }}
-                  className="rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
                 >
                   Cancel
                 </button>
@@ -604,7 +602,7 @@ export default function WarehousePage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {zonesQuery.isLoading && <p className="text-slate-400 text-sm col-span-3">Loading…</p>}
             {(zonesQuery.data?.content ?? []).map((z) => (
-              <div key={z.id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm space-y-2">
+              <div key={z.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-2 hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-sm font-semibold text-slate-900">{z.code}</span>
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ZONE_TYPE_BADGE[z.type] ?? 'bg-slate-100 text-slate-700'}`}>
@@ -620,7 +618,7 @@ export default function WarehousePage() {
               </div>
             ))}
             {(zonesQuery.data?.content ?? []).length === 0 && !zonesQuery.isLoading && (
-              <div className="col-span-3 rounded-lg border border-dashed border-slate-200 p-10 text-center">
+              <div className="col-span-3 rounded-2xl border border-dashed border-slate-200 p-10 text-center">
                 <Layers size={32} className="mx-auto mb-2 text-slate-300" />
                 <p className="text-sm text-slate-500">No warehouse zones yet.</p>
                 <p className="text-xs text-slate-400 mt-1">They are seeded automatically on service startup, or create one above.</p>
