@@ -1,19 +1,26 @@
 import { type FormEvent, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { ArrowLeft, Package, Info } from 'lucide-react'
 import { createProduct, type ProductRequest } from '../../api/inventoryApi.ts'
 import { createSkuLocation } from '../../api/warehouseApi.ts'
 import { extractErrorMessage } from '../../api/axiosInstance.ts'
 
 const empty: ProductRequest = {
-  sku: '',
-  name: '',
-  description: '',
-  imageUrl: '',
-  unitPrice: 0,
-  quantity: 0,
-  reorderLevel: 0,
+  sku: '', name: '', description: '', imageUrl: '', unitPrice: 0, quantity: 0, reorderLevel: 0,
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium text-slate-700">{label}</label>
+        {hint && <span className="text-xs text-slate-400">{hint}</span>}
+      </div>
+      {children}
+    </div>
+  )
 }
 
 export default function CreateProductPage() {
@@ -24,107 +31,96 @@ export default function CreateProductPage() {
   const mutation = useMutation({
     mutationFn: async (req: ProductRequest) => {
       const product = await createProduct(req)
-      // Auto-register a default warehouse location so the product is
-      // immediately pickable. Fails silently if warehouse is unreachable.
       try {
-        await createSkuLocation({
-          sku: product.sku,
-          zoneCode: 'STOR-01',
-          shelfCode: 'UNREGISTERED',
-          onHandQuantity: product.quantity,
-        })
-      } catch {
-        // warehouse registration is best-effort; specialist can assign shelf later
-      }
+        await createSkuLocation({ sku: product.sku, zoneCode: 'STOR-01', shelfCode: 'UNREGISTERED', onHandQuantity: product.quantity })
+      } catch { /* warehouse registration is best-effort */ }
       return product
     },
     onSuccess: (p) => {
       qc.invalidateQueries({ queryKey: ['products'] })
       qc.invalidateQueries({ queryKey: ['skuLocs'] })
-      toast.success(`"${p.name}" created and registered in STOR-01`)
+      toast.success(`"${p.name}" created`)
       navigate('/inventory')
     },
     onError: (err) => toast.error(extractErrorMessage(err, 'Failed to create product')),
   })
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    mutation.mutate(form)
-  }
-
   const set = <K extends keyof ProductRequest>(k: K, v: ProductRequest[K]) =>
     setForm((prev) => ({ ...prev, [k]: v }))
 
+  const inputCls = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100'
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Create product</h1>
-        <p className="text-xs text-slate-500 mt-1">
-          A default warehouse location in STOR-01 is automatically registered. A warehouse specialist can update the shelf code later.
-        </p>
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Link to="/inventory" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100">
+          <ArrowLeft size={16} />
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">New Product</h1>
+          <p className="text-sm text-slate-500">Fill in the details below to add a product to inventory.</p>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid max-w-2xl gap-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm md:grid-cols-2">
-        <div className="md:col-span-1">
-          <label className="text-sm font-medium text-slate-700">SKU <span className="text-slate-400 font-normal">(optional — auto-generated if blank)</span></label>
-          <input
-            value={form.sku ?? ''}
-            placeholder="e.g. WIDGET-001"
-            onChange={(e) => set('sku', e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <div className="md:col-span-1">
-          <label className="text-sm font-medium text-slate-700">Name</label>
-          <input required value={form.name} onChange={(e) => set('name', e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        </div>
-        <div className="md:col-span-2">
-          <label className="text-sm font-medium text-slate-700">Description</label>
-          <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={3} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        </div>
-        <div className="md:col-span-2">
-          <label className="text-sm font-medium text-slate-700">Image URL <span className="text-slate-400 font-normal">(optional)</span></label>
-          <input
-            type="url"
-            value={form.imageUrl ?? ''}
-            placeholder="https://images.unsplash.com/photo-…"
-            onChange={(e) => set('imageUrl', e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-          {form.imageUrl && (
-            <img
-              src={form.imageUrl}
-              alt="preview"
-              className="mt-2 h-24 w-24 rounded-md object-cover border border-slate-200"
-              onError={(e) => (e.currentTarget.style.display = 'none')}
-            />
-          )}
-        </div>
-        <div>
-          <label className="text-sm font-medium text-slate-700">Unit price</label>
-          <input type="number" step="0.01" min="0.01" required value={form.unitPrice} onChange={(e) => set('unitPrice', Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        </div>
-        <div>
-          <label className="text-sm font-medium text-slate-700">Quantity</label>
-          <input type="number" min="0" required value={form.quantity} onChange={(e) => set('quantity', Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        </div>
-        <div>
-          <label className="text-sm font-medium text-slate-700">Reorder level</label>
-          <input type="number" min="0" required value={form.reorderLevel} onChange={(e) => set('reorderLevel', Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        </div>
+      <form
+        onSubmit={(e: FormEvent) => { e.preventDefault(); mutation.mutate(form) }}
+        className="grid max-w-2xl gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:grid-cols-2"
+      >
+        <Field label="SKU" hint="Optional — auto-generated if blank">
+          <input value={form.sku ?? ''} placeholder="e.g. WIDGET-001" onChange={(e) => set('sku', e.target.value)} className={inputCls} />
+        </Field>
 
-        <div className="md:col-span-2 rounded-md bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
-          After creation, go to <strong>Warehouse → SKU Locations</strong> to update the shelf code from <code>UNREGISTERED</code> to the product's physical shelf position.
+        <Field label="Product Name">
+          <input required value={form.name} placeholder="e.g. Blue Widget" onChange={(e) => set('name', e.target.value)} className={inputCls} />
+        </Field>
+
+        <div className="md:col-span-2">
+          <Field label="Description" hint="Optional">
+            <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={3} placeholder="Brief description of the product…" className={`${inputCls} resize-none`} />
+          </Field>
         </div>
 
         <div className="md:col-span-2">
+          <Field label="Image URL" hint="Optional">
+            <input type="url" value={form.imageUrl ?? ''} placeholder="https://…" onChange={(e) => set('imageUrl', e.target.value)} className={inputCls} />
+            {form.imageUrl && (
+              <div className="mt-2">
+                <img src={form.imageUrl} alt="preview" className="h-24 w-24 rounded-xl border border-slate-200 object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              </div>
+            )}
+          </Field>
+        </div>
+
+        <Field label="Unit Price ($)">
+          <input type="number" step="0.01" min="0.01" required value={form.unitPrice} onChange={(e) => set('unitPrice', Number(e.target.value))} className={inputCls} />
+        </Field>
+
+        <Field label="Initial Quantity">
+          <input type="number" min="0" required value={form.quantity} onChange={(e) => set('quantity', Number(e.target.value))} className={inputCls} />
+        </Field>
+
+        <Field label="Reorder Level" hint="Triggers low-stock alert">
+          <input type="number" min="0" required value={form.reorderLevel} onChange={(e) => set('reorderLevel', Number(e.target.value))} className={inputCls} />
+        </Field>
+
+        <div className="md:col-span-2">
+          <div className="flex items-start gap-2.5 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            <Info size={15} className="mt-0.5 shrink-0" />
+            <span>A default warehouse location in <strong>STOR-01</strong> is registered automatically. A warehouse specialist can update the shelf code later.</span>
+          </div>
+        </div>
+
+        <div className="md:col-span-2 flex items-center gap-3">
           <button
             type="submit"
             disabled={mutation.isPending}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
           >
-            {mutation.isPending ? 'Creating…' : 'Create product'}
+            <Package size={15} />
+            {mutation.isPending ? 'Creating…' : 'Create Product'}
           </button>
+          <Link to="/inventory" className="text-sm text-slate-500 hover:text-slate-800 hover:underline">Cancel</Link>
         </div>
       </form>
     </div>
