@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -18,6 +19,18 @@ import {
 } from 'lucide-react'
 import type { Role } from '../../api/authApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
+import { useNotificationStore } from '../../store/notificationStore.ts'
+import { getCart } from '../../api/cartApi.ts'
+
+function NotifBadge() {
+  const count = useNotificationStore((s) => s.unreadCount)
+  if (count === 0) return null
+  return (
+    <span className="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
 
 interface NavItem {
   to: string
@@ -74,6 +87,15 @@ interface SidebarProps {
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const role = useAuthStore((s) => s.role)
+  const userIdNum = useAuthStore((s) => s.userIdNum)
+
+  const cartQuery = useQuery({
+    queryKey: ['cart', userIdNum],
+    queryFn: () => getCart(userIdNum!),
+    enabled: role === 'CUSTOMER' && userIdNum != null,
+    staleTime: 30_000,
+  })
+  const cartCount = cartQuery.data?.items?.length ?? 0
 
   return (
     <div className="flex h-full flex-col">
@@ -128,7 +150,15 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                     }
                   >
                     <Icon size={16} />
-                    {label}
+                    <span className="flex-1">{label}</span>
+                    {to === '/cart' && cartCount > 0 && (
+                      <span className="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-indigo-500 px-1.5 text-[10px] font-bold text-white">
+                        {cartCount > 99 ? '99+' : cartCount}
+                      </span>
+                    )}
+                    {to === '/notifications' && (
+                      <NotifBadge />
+                    )}
                   </NavLink>
                 ))}
               </div>
