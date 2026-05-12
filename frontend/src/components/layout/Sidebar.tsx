@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -12,6 +13,7 @@ import {
   FileText,
   User,
   Zap,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import type { Role } from '../../api/authApi.ts'
@@ -49,11 +51,11 @@ const NAV_GROUPS: { heading?: string; items: NavItem[] }[] = [
   {
     heading: 'System',
     items: [
-      { to: '/documents',     label: 'Documents',   icon: FileText },
+      { to: '/documents',     label: 'Documents',     icon: FileText },
       { to: '/notifications', label: 'Notifications', icon: Bell },
-      { to: '/admin/users',   label: 'Users',       icon: Users, roles: [] },
-      { to: '/admin/events',  label: 'Event State', icon: Zap,   roles: [] },
-      { to: '/profile',       label: 'Profile',     icon: User },
+      { to: '/admin/users',   label: 'Users',         icon: Users, roles: [] },
+      { to: '/admin/events',  label: 'Event State',   icon: Zap,   roles: [] },
+      { to: '/profile',       label: 'Profile',       icon: User },
     ],
   },
 ]
@@ -65,20 +67,37 @@ function isVisible(item: NavItem, role: Role | null): boolean {
   return item.roles.includes(role)
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+function SidebarContent({ onClose }: { onClose?: () => void }) {
   const role = useAuthStore((s) => s.role)
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white md:flex shadow-sm">
+    <div className="flex h-full flex-col">
       {/* Brand */}
-      <div className="flex h-16 items-center gap-2.5 border-b border-slate-100 px-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
-          <Truck size={16} />
+      <div className="flex h-16 items-center justify-between border-b border-slate-100 px-5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
+            <Truck size={16} />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-slate-900 leading-tight">SCM Platform</div>
+            <div className="text-[10px] text-slate-400 uppercase tracking-wide">Supply Chain</div>
+          </div>
         </div>
-        <div>
-          <div className="text-sm font-bold text-slate-900 leading-tight">SCM Platform</div>
-          <div className="text-[10px] text-slate-400 uppercase tracking-wide">Supply Chain</div>
-        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 md:hidden"
+            aria-label="Close navigation"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
@@ -99,6 +118,7 @@ export default function Sidebar() {
                     key={to}
                     to={to}
                     end={to === '/dashboard'}
+                    onClick={onClose}
                     className={({ isActive }) =>
                       `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                         isActive
@@ -124,6 +144,42 @@ export default function Sidebar() {
           <p className="text-indigo-500 mt-0.5">All systems operational</p>
         </div>
       </div>
-    </aside>
+    </div>
+  )
+}
+
+export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
+  // Lock body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [isOpen])
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white shadow-sm md:flex md:flex-col">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          {/* Drawer */}
+          <aside className="absolute left-0 top-0 h-full w-72 bg-white shadow-xl">
+            <SidebarContent onClose={onClose} />
+          </aside>
+        </div>
+      )}
+    </>
   )
 }

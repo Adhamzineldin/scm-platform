@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { Bell, User, LogOut, ChevronDown } from 'lucide-react'
+import { Bell, User, LogOut, ChevronDown, Menu } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useState, useRef, useEffect } from 'react'
 import { useAuthStore } from '../../store/authStore.ts'
@@ -23,7 +23,11 @@ const ROLE_LABELS: Record<string, string> = {
   STAFF: 'Staff',
 }
 
-export default function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void
+}
+
+export default function Header({ onMenuClick }: HeaderProps) {
   const navigate = useNavigate()
   const { username, role, logout } = useAuthStore()
   const unreadCount = useNotificationStore((s) => s.unreadCount)
@@ -54,9 +58,18 @@ export default function Header() {
   }, [])
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 shadow-sm">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-slate-400">Supply Chain Management</span>
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 shadow-sm md:px-6">
+      <div className="flex items-center gap-3">
+        {/* Hamburger — mobile only */}
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 md:hidden"
+          aria-label="Open navigation"
+        >
+          <Menu size={20} />
+        </button>
+        <span className="hidden text-sm font-medium text-slate-400 sm:block">Supply Chain Management</span>
       </div>
 
       <div className="flex items-center gap-2">
