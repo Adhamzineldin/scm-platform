@@ -1,11 +1,13 @@
 import { type FormEvent, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Trash2, Plus } from 'lucide-react'
+import { Trash2, Plus, ArrowLeft, ShoppingBag, MapPin } from 'lucide-react'
 import { createOrder, type OrderItemRequest } from '../../api/ordersApi.ts'
 import { listProducts } from '../../api/inventoryApi.ts'
 import { extractErrorMessage } from '../../api/axiosInstance.ts'
+
+const inputCls = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100'
 
 export default function CreateOrderPage() {
   const navigate = useNavigate()
@@ -45,82 +47,127 @@ export default function CreateOrderPage() {
     })
   }
 
+  const orderTotal = items.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0)
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Create order</h1>
-
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Link
+          to="/orders"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100"
+        >
+          <ArrowLeft size={16} />
+        </Link>
         <div>
-          <label className="text-sm font-medium text-slate-700">Shipping address</label>
-          <input
+          <h1 className="text-2xl font-bold text-slate-900">Create Order</h1>
+          <p className="text-sm text-slate-500">Fill in the shipping address and add line items below.</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="max-w-2xl space-y-5">
+        {/* Shipping address */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <MapPin size={15} className="text-indigo-500" />
+            Shipping Address
+          </div>
+          <textarea
             required
+            rows={3}
             value={shippingAddress}
             onChange={(e) => setShippingAddress(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Street address, city, postal code, country…"
+            className={`${inputCls} resize-none`}
           />
         </div>
 
-        <div className="space-y-2">
+        {/* Items */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-700">Items</h2>
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <ShoppingBag size={15} className="text-indigo-500" />
+              Order Items
+            </div>
             <button
               type="button"
               onClick={() => setItems([...items, { sku: '', quantity: 1, unitPrice: 0 }])}
-              className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
             >
-              <Plus size={14} /> Add item
+              <Plus size={13} /> Add item
             </button>
           </div>
 
-          {items.map((item, idx) => (
-            <div key={idx} className="grid grid-cols-12 gap-2">
-              <select
-                value={item.sku}
-                onChange={(e) => handleSkuChange(idx, e.target.value)}
-                required
-                className="col-span-5 rounded-md border border-slate-300 px-2 py-2 text-sm"
-              >
-                <option value="">Select SKU…</option>
-                {productsQuery.data?.content?.map((p) => (
-                  <option key={p.sku} value={p.sku}>{p.sku} — {p.name}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min={1}
-                value={item.quantity}
-                onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })}
-                className="col-span-3 rounded-md border border-slate-300 px-2 py-2 text-sm"
-                placeholder="Qty"
-              />
-              <input
-                type="number"
-                step="0.01"
-                value={item.unitPrice}
-                onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })}
-                className="col-span-3 rounded-md border border-slate-300 px-2 py-2 text-sm"
-                placeholder="Unit price"
-              />
-              <button
-                type="button"
-                onClick={() => setItems(items.filter((_, i) => i !== idx))}
-                className="col-span-1 flex items-center justify-center text-red-600 hover:text-red-800"
-              >
-                <Trash2 size={16} />
-              </button>
+          <div className="space-y-3">
+            {items.map((item, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-3 rounded-xl bg-slate-50 p-3">
+                <select
+                  value={item.sku}
+                  onChange={(e) => handleSkuChange(idx, e.target.value)}
+                  required
+                  className="col-span-5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                >
+                  <option value="">Select product…</option>
+                  {productsQuery.data?.content?.map((p) => (
+                    <option key={p.sku} value={p.sku}>{p.sku} — {p.name}</option>
+                  ))}
+                </select>
+                <div className="col-span-3">
+                  <input
+                    type="number"
+                    min={1}
+                    value={item.quantity}
+                    onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                    placeholder="Qty"
+                  />
+                </div>
+                <div className="col-span-3">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={item.unitPrice}
+                    onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                    placeholder="Price"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                  disabled={items.length === 1}
+                  className="col-span-1 flex items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30 transition-colors"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {items.length > 0 && (
+            <div className="flex items-center justify-end rounded-xl bg-slate-100 px-4 py-2.5 text-sm">
+              <span className="text-slate-500 mr-2">Estimated total</span>
+              <span className="font-bold text-slate-900">${orderTotal.toFixed(2)}</span>
             </div>
-          ))}
+          )}
         </div>
 
-        <button
-          type="submit"
-          disabled={mutation.isPending}
-          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {mutation.isPending ? 'Submitting…' : 'Create order'}
-        </button>
+        {/* Actions */}
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={mutation.isPending}
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+          >
+            <ShoppingBag size={15} />
+            {mutation.isPending ? 'Placing order…' : 'Place Order'}
+          </button>
+          <Link to="/orders" className="text-sm text-slate-500 hover:text-slate-800 hover:underline">
+            Cancel
+          </Link>
+        </div>
       </form>
     </div>
   )
 }
-
