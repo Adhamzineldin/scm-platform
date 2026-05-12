@@ -110,7 +110,7 @@ export default function ShipmentDetailPage() {
 
   if (isError || !data) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700">
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
         Failed to load shipment.{' '}
         <Link to="/shipments" className="font-medium underline">Go back</Link>
       </div>
@@ -147,14 +147,17 @@ export default function ShipmentDetailPage() {
             {data.carrier && <> · {data.carrier}</>}
           </p>
         </div>
-        <Link to="/shipments" className="text-sm text-slate-500 hover:text-indigo-600 hover:underline transition-colors">
+        <Link
+          to="/shipments"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50 transition-colors"
+        >
           ← Back to shipments
         </Link>
       </div>
 
       {/* PENDING call-to-action — shown to staff when shipment was just created manually */}
       {canDispatch && data.status === 'PENDING' && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
           <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -167,7 +170,7 @@ export default function ShipmentDetailPage() {
 
       {/* Summary + Current Dispatch */}
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Shipment Info</h2>
           <dl className="space-y-3 text-sm">
             <div className="flex items-center justify-between">
@@ -199,7 +202,7 @@ export default function ShipmentDetailPage() {
           </dl>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Current Dispatch</h2>
           {data.currentDispatch ? (
             <dl className="space-y-3 text-sm">
@@ -247,7 +250,7 @@ export default function ShipmentDetailPage() {
       {canDispatch && (
         <form
           onSubmit={handleDispatch}
-          className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4"
+          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4"
         >
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-900">
@@ -371,7 +374,7 @@ export default function ShipmentDetailPage() {
 
       {/* Manual status advancement — SHIPPED → IN_TRANSIT → DELIVERED */}
       {canDispatch && (data.status === 'SHIPPED' || data.status === 'IN_TRANSIT') && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-slate-700">Advance Status</h2>
           <div className="flex items-center gap-3">
             {data.status === 'SHIPPED' && (
@@ -401,7 +404,7 @@ export default function ShipmentDetailPage() {
       )}
 
       {/* Status Timeline */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="mb-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Status Timeline</h2>
         {(data.history ?? []).length === 0 ? (
           <div className="flex flex-col items-center py-8 text-slate-400">
