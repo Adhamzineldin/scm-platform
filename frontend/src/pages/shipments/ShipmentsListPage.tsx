@@ -287,29 +287,30 @@ export default function ShipmentsListPage() {
         </table>
       </div>
 
-      {(data?.totalPages ?? 1) > 1 && (
-        <div className="flex items-center justify-between text-sm text-slate-600">
-          <span className="text-xs text-slate-500">
-            Page {page + 1} of {data?.totalPages ?? 1}
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              ← Prev
-            </button>
-            <button
-              onClick={() => setPage((p) => p + 1)}
-              disabled={data?.last ?? false}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Next →
-            </button>
+        {(data?.totalPages ?? 1) > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-3">
+            <span className="text-sm text-slate-500">
+              Page <span className="font-semibold text-slate-700">{page + 1}</span> of {data?.totalPages ?? 1}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 hover:bg-white disabled:opacity-40"
+              >
+                ←
+              </button>
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={data?.last ?? false}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 hover:bg-white disabled:opacity-40"
+              >
+                →
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
