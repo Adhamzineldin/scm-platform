@@ -41,9 +41,49 @@ body {
 :focus-visible {
   outline: 2px solid #6366f1;
   outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Remove focus ring when using mouse — only show on keyboard nav */
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* Smooth transitions on interactive elements */
 button, a {
-  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease,
+              box-shadow 150ms ease, opacity 150ms ease, transform 150ms ease;
+}
+
+/* Disabled state */
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Smooth table row hovers */
+tr {
+  transition: background-color 100ms ease;
+}
+
+/* Card hover lift */
+.card-lift {
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+.card-lift:hover {
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Page content fade-in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+main > * {
+  animation: fadeIn 200ms ease forwards;
+}
+
+/* Monospace font for code/IDs */
+.font-mono {
+  font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
 }
