@@ -11,69 +11,119 @@ import {
   Bell,
   FileText,
   User,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 import type { Role } from '../../api/authApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
 
-interface NavLink {
+interface NavItem {
   to: string
   label: string
   icon: LucideIcon
-  /** undefined = visible to every authenticated user. ADMIN is always allowed. */
   roles?: Role[]
 }
 
-const ALL_LINKS: NavLink[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/shop', label: 'Shop', icon: Store, roles: ['CUSTOMER'] },
-  { to: '/orders', label: 'Orders', icon: ShoppingBag, roles: ['ORDER_PROCESSING', 'CUSTOMER'] },
-  { to: '/inventory', label: 'Inventory', icon: Boxes, roles: ['INVENTORY_MANAGER'] },
-  { to: '/warehouse', label: 'Warehouse', icon: Warehouse, roles: ['WAREHOUSE_SPECIALIST'] },
-  { to: '/shipments', label: 'Shipments', icon: Truck, roles: ['SHIPMENT_LEAD'] },
-  { to: '/cart', label: 'Cart', icon: ShoppingCart, roles: ['CUSTOMER'] },
-  { to: '/documents', label: 'Documents', icon: FileText },
-  { to: '/notifications', label: 'Notifications', icon: Bell },
-  { to: '/admin/users', label: 'Users', icon: Users, roles: [] }, // ADMIN-only (empty list + ADMIN bypass)
-  { to: '/admin/events', label: 'Event State', icon: Bell, roles: [] },
-  { to: '/profile', label: 'Profile', icon: User },
+const NAV_GROUPS: { heading?: string; items: NavItem[] }[] = [
+  {
+    items: [
+      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    heading: 'Commerce',
+    items: [
+      { to: '/shop',   label: 'Shop',    icon: Store,        roles: ['CUSTOMER'] },
+      { to: '/cart',   label: 'Cart',    icon: ShoppingCart, roles: ['CUSTOMER'] },
+      { to: '/orders', label: 'Orders',  icon: ShoppingBag,  roles: ['ORDER_PROCESSING', 'CUSTOMER'] },
+    ],
+  },
+  {
+    heading: 'Operations',
+    items: [
+      { to: '/inventory', label: 'Inventory', icon: Boxes,     roles: ['INVENTORY_MANAGER'] },
+      { to: '/warehouse', label: 'Warehouse', icon: Warehouse, roles: ['WAREHOUSE_SPECIALIST'] },
+      { to: '/shipments', label: 'Shipments', icon: Truck,     roles: ['SHIPMENT_LEAD'] },
+    ],
+  },
+  {
+    heading: 'System',
+    items: [
+      { to: '/documents',     label: 'Documents',   icon: FileText },
+      { to: '/notifications', label: 'Notifications', icon: Bell },
+      { to: '/admin/users',   label: 'Users',       icon: Users, roles: [] },
+      { to: '/admin/events',  label: 'Event State', icon: Zap,   roles: [] },
+      { to: '/profile',       label: 'Profile',     icon: User },
+    ],
+  },
 ]
 
-function isVisible(link: NavLink, role: Role | null): boolean {
+function isVisible(item: NavItem, role: Role | null): boolean {
   if (!role) return false
   if (role === 'ADMIN') return true
-  if (!link.roles) return true
-  return link.roles.includes(role)
+  if (!item.roles) return true
+  return item.roles.includes(role)
 }
 
 export default function Sidebar() {
   const role = useAuthStore((s) => s.role)
-  const links = ALL_LINKS.filter((l) => isVisible(l, role))
 
   return (
-    <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
-      <div className="flex h-16 items-center border-b border-slate-200 px-6 text-lg font-semibold text-slate-900">
-        SCM Platform
+    <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white md:flex shadow-sm">
+      {/* Brand */}
+      <div className="flex h-16 items-center gap-2.5 border-b border-slate-100 px-5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
+          <Truck size={16} />
+        </div>
+        <div>
+          <div className="text-sm font-bold text-slate-900 leading-tight">SCM Platform</div>
+          <div className="text-[10px] text-slate-400 uppercase tracking-wide">Supply Chain</div>
+        </div>
       </div>
-      <nav className="flex-1 space-y-1 p-3">
-        {links.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/dashboard'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
-                isActive
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`
-            }
-          >
-            <Icon size={18} />
-            {label}
-          </NavLink>
-        ))}
+
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto p-3 space-y-4">
+        {NAV_GROUPS.map((group, gi) => {
+          const visible = group.items.filter((item) => isVisible(item, role))
+          if (visible.length === 0) return null
+          return (
+            <div key={gi}>
+              {group.heading && (
+                <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                  {group.heading}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {visible.map(({ to, label, icon: Icon }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={to === '/dashboard'}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                        isActive
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      }`
+                    }
+                  >
+                    <Icon size={16} />
+                    {label}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )
+        })}
       </nav>
+
+      {/* Footer */}
+      <div className="border-t border-slate-100 p-3">
+        <div className="rounded-lg bg-indigo-50 px-3 py-2.5 text-xs text-indigo-700">
+          <p className="font-semibold">SCM v1.0</p>
+          <p className="text-indigo-500 mt-0.5">All systems operational</p>
+        </div>
+      </div>
     </aside>
   )
 }
