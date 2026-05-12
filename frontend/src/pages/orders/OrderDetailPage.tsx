@@ -159,13 +159,18 @@ export default function OrderDetailPage() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/orders" className="text-sm text-indigo-600 hover:underline">← Back</Link>
+          <Link
+            to="/orders"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+          >
+            ← Back
+          </Link>
         </div>
       </div>
 
       {/* Status Timeline — shown for everyone */}
       {!isCancelled && (
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">Order Status</h2>
           <div className="relative flex items-start justify-between">
             {/* connector line */}
@@ -209,7 +214,7 @@ export default function OrderDetailPage() {
       )}
 
       {isCancelled && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           This order has been cancelled.
         </div>
       )}
@@ -299,7 +304,7 @@ export default function OrderDetailPage() {
 
       {/* Status history timeline — detailed (shown to all) */}
       {activityEntries.length > 0 && (
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">Activity Log</h2>
           <ol className="relative ml-3 border-l border-slate-200">
             {activityEntries.map((h) => {
@@ -332,7 +337,7 @@ export default function OrderDetailPage() {
 
       {/* Shipment tracking card — shown when shipment exists */}
       {shipment && (
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-slate-700">Shipment Tracking</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 text-sm">
@@ -436,7 +441,7 @@ export default function OrderDetailPage() {
       </div>
 
       {/* Items table */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="px-4 py-3 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-slate-700">Items ({data.items.length})</h2>
         </div>
