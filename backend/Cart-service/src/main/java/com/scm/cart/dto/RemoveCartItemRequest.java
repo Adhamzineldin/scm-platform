@@ -1,4 +1,0 @@
-package com.scm.cart.dto;
-
-public class RemoveCartItemRequest {
-}

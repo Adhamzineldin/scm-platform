@@ -14,7 +14,7 @@ function resolveMediaUrl(url: string | null | undefined): string | null {
 
 export default function ProfilePage() {
   const navigate = useNavigate()
-  const { userId, logout } = useAuthStore()
+  const { userId, logout, token } = useAuthStore()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
@@ -124,6 +124,13 @@ export default function ProfilePage() {
             </dd>
           </div>
         </dl>
+
+        <details className="mt-6 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs">
+          <summary className="cursor-pointer text-slate-600">JWT (debug)</summary>
+          <pre className="mt-2 break-all whitespace-pre-wrap font-mono text-[10px] text-slate-500">
+            {token ?? ''}
+          </pre>
+        </details>
 
         <button
           onClick={handleLogout}
