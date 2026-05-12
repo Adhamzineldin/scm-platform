@@ -104,9 +104,12 @@ export default function DashboardHome() {
   return (
     <div className="space-y-8">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">{greeting}{username ? `, ${username}` : ''} 👋</h1>
-        <p className="mt-1 text-sm text-slate-500">Here's what's happening across your supply chain today.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">{greeting}{username ? `, ${username}` : ''}</h1>
+          <p className="mt-0.5 text-sm text-slate-500">Here's what's happening across your supply chain today.</p>
+        </div>
+        <p className="hidden text-xs text-slate-400 sm:block">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       </div>
 
       {/* Stat cards */}
