@@ -7,8 +7,8 @@ import {
 import toast from 'react-hot-toast'
 import { Trash2, Plus, Search, Boxes, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import { deleteProduct, listProducts, type ProductResponse } from '../../api/inventoryApi.ts'
-import { Spinner } from '../../components/ui/Spinner.tsx'
 import { EmptyState } from '../../components/ui/EmptyState.tsx'
+import { TableSkeleton } from '../../components/ui/Skeleton.tsx'
 
 export default function InventoryPage() {
   const PAGE_SIZE = 20
@@ -146,7 +146,19 @@ export default function InventoryPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
-                <tr><td colSpan={columns.length} className="py-0"><Spinner /></td></tr>
+                <tr><td colSpan={columns.length} className="py-0">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-slate-100 last:border-0">
+                      <div className="h-4 w-24 animate-pulse rounded-xl bg-slate-200" />
+                      <div className="h-4 flex-1 animate-pulse rounded-xl bg-slate-200" />
+                      <div className="h-4 w-16 animate-pulse rounded-xl bg-slate-200" />
+                      <div className="h-4 w-10 animate-pulse rounded-xl bg-slate-200" />
+                      <div className="h-4 w-16 animate-pulse rounded-xl bg-slate-200" />
+                      <div className="h-5 w-12 animate-pulse rounded-full bg-slate-200" />
+                      <div className="h-6 w-20 animate-pulse rounded-xl bg-slate-200" />
+                    </div>
+                  ))}
+                </td></tr>
               ) : table.getRowModel().rows.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length}>

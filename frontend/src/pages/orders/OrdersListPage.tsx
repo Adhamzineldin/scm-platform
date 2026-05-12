@@ -8,7 +8,6 @@ import { Plus, ShoppingBag, ChevronLeft, ChevronRight } from 'lucide-react'
 import { listOrders, listMyOrders, type OrderResponse, type OrderStatus } from '../../api/ordersApi.ts'
 import { useAuthStore } from '../../store/authStore.ts'
 import { displayUser, useUserNames } from '../../hooks/useUserNames.ts'
-import { Spinner } from '../../components/ui/Spinner.tsx'
 import { EmptyState } from '../../components/ui/EmptyState.tsx'
 
 const STATUS_STYLE: Record<OrderStatus, { label: string; cls: string }> = {
@@ -133,7 +132,17 @@ export default function OrdersListPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
-                <tr><td colSpan={columns.length} className="py-0"><Spinner /></td></tr>
+                <tr><td colSpan={columns.length} className="py-0">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-slate-100 last:border-0">
+                      <div className="h-4 w-28 animate-pulse rounded-xl bg-slate-200" />
+                      <div className="h-5 w-20 animate-pulse rounded-full bg-slate-200" />
+                      <div className="h-4 flex-1 animate-pulse rounded-xl bg-slate-200" />
+                      <div className="h-4 w-24 animate-pulse rounded-xl bg-slate-200" />
+                      <div className="h-6 w-16 animate-pulse rounded-xl bg-slate-200" />
+                    </div>
+                  ))}
+                </td></tr>
               ) : table.getRowModel().rows.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length}>
